@@ -44,6 +44,9 @@ async def fetch_caption(url):
 @app.route("/webhook", methods=["POST"])
 def webhook():
     url = request.form.get("url")
+
+    print("📥 Received TikTok URL:", url)  # ← Add this line here
+
     if not url:
         return "Missing TikTok URL", 400
 
