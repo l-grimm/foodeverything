@@ -34,7 +34,10 @@ Return JSON:
 
 async def fetch_caption(url):
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
+        browser = await p.chromium.launch(
+            headless=True,
+            args=["--no-sandbox", "--disable-dev-shm-usage"]
+        )
         page = await browser.new_page()
         await page.goto(url, timeout=60000)
         caption = await page.locator('[data-e2e="browse-video-desc"]').inner_text()
