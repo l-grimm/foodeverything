@@ -67,8 +67,8 @@ def webhook():
                 {"role": "user", "content": caption}
             ]
         )
+        recipe = response.choices[0].message.content
 
-    recipe = response.choices[0].message.content
 
 
         import ast
