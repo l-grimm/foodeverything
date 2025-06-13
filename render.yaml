@@ -5,7 +5,7 @@ services:
     buildCommand: |
       pip install -r requirements.txt
       playwright install chromium
-    startCommand: gunicorn webhook_server:app
+    startCommand: ./start.sh
     envVars:
       - key: OPENAI_API_KEY
         sync: false
