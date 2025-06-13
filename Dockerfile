@@ -1,20 +1,21 @@
-# Dockerfile for deploying TikTok recipe webhook to Render
-
-# Base image: includes Python and Playwright support
+# Use official Playwright base image with Python and Chromium
 FROM mcr.microsoft.com/playwright/python:v1.44.0-jammy
 
 # Set working directory
 WORKDIR /app
 
-# Copy requirements and install dependencies
+# Copy requirements and install Python deps
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy app files into container
+# Install Chromium browser ahead of time
+RUN playwright install chromium
+
+# Copy the rest of the code
 COPY . .
 
-# Expose port (Render ignores this but useful for local dev)
+# Expose the port (optional)
 EXPOSE 10000
 
-# Start the server using Gunicorn
+# Start server
 CMD ["gunicorn", "webhook_server:app", "--bind", "0.0.0.0:10000"]
