@@ -15,21 +15,15 @@ airtable_table = os.environ["AIRTABLE_TABLE_NAME"]
 
 table = Table(airtable_key, airtable_base, airtable_table)
 
-system_prompt = """
-You are a recipe parser. Extract structured recipes from TikTok captions.
+system_prompt = """You are a recipe parsing assistant. Given a recipe caption, you must extract a structured recipe in strict JSON format with this schema:
 
-Return JSON:
 {
   "title": "...",
-  "ingredients": [
-    {"quantity": "1", "unit": "tbsp", "ingredient": "butter"},
-    ...
-  ],
-  "instructions": [
-    "Step 1...",
-    "Step 2..."
-  ]
+  "ingredients": [{"quantity": "...", "unit": "...", "ingredient": "..."}],
+  "instructions": ["Step 1...", "Step 2...", ...]
 }
+
+Your response must be valid JSON only — no extra commentary, markdown, or trailing commas.
 """
 
 async def fetch_caption(url):
@@ -71,8 +65,9 @@ def webhook():
 
 
 
-        import ast
-        recipe_data = ast.literal_eval(recipe)
+        import json
+        recipe_data = json.loads(recipe)
+
 
         title = recipe_data.get("title", "Untitled Recipe")
         ingredients = "\n".join(
