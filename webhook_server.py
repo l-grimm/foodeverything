@@ -8,7 +8,7 @@ from playwright.async_api import async_playwright
 app = Flask(__name__)
 
 # Load secrets from environment variables
-openai.api_key = os.environ["OPENAI_API_KEY"]
+client = openai.OpenAI(api_key=os.environ["OPENAI_API_KEY"])
 airtable_key = os.environ["AIRTABLE_API_KEY"]
 airtable_base = os.environ["AIRTABLE_BASE_ID"]
 airtable_table = os.environ["AIRTABLE_TABLE_NAME"]
@@ -60,14 +60,16 @@ def webhook():
 
     # GPT call
     try:
-        response = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model="gpt-4o",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": caption}
             ]
         )
-        recipe = response["choices"][0]["message"]["content"]
+
+    recipe = response.choices[0].message.content
+
 
         import ast
         recipe_data = ast.literal_eval(recipe)
