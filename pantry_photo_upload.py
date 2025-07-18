@@ -40,7 +40,7 @@ def pantry_photo_upload():
             messages=[
                 {"role": "system", "content": "You extract pantry item names and perishability from photos."},
                 {"role": "user", "content": [
-                    {"type": "text", "text": "What pantry item is shown in this photo? Is it perishable? Respond ONLY with valid JSON like this: {\"item\": \"milk\", \"perishable\": true}"}
+                    {"type": "text", "text": "What pantry item is shown in this photo? Is it perishable? Return only this JSON: {\"item\": \"string\", \"perishable\": true/false}"},
                     {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
                 ]}
             ],
