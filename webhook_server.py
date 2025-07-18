@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify
+from pantry_photo_upload import pantry_bp
 import openai
 from pyairtable import Table
 import os
@@ -6,6 +7,7 @@ import asyncio
 from playwright.async_api import async_playwright
 
 app = Flask(__name__)
+app.register_blueprint(pantry_bp)
 
 # Load secrets from environment variables
 client = openai.OpenAI(api_key=os.environ["OPENAI_API_KEY"])
