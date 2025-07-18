@@ -1,20 +1,21 @@
 from flask import Blueprint, request, jsonify
-import openai
 import base64
 import requests
 import datetime
 import os
+import openai
 
-# Create a Flask Blueprint so we can register this route later
+# Create Flask Blueprint
 pantry_bp = Blueprint("pantry_bp", __name__)
 
-# Load secrets from environment variables
+# Load secrets from environment
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 AIRTABLE_TOKEN = os.getenv("AIRTABLE_TOKEN")
 AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")
 AIRTABLE_TABLE_NAME = os.getenv("AIRTABLE_TABLE_NAME")
 
-openai.api_key = OPENAI_API_KEY
+# Setup clients
+openai_client = openai.OpenAI(api_key=OPENAI_API_KEY)
 
 AIRTABLE_URL = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_TABLE_NAME}"
 AIRTABLE_HEADERS = {
@@ -24,18 +25,17 @@ AIRTABLE_HEADERS = {
 
 @pantry_bp.route('/api/v1/pantry-item-photo-upload', methods=['POST'])
 def pantry_photo_upload():
-    """Handle a photo of a pantry item, identify it using GPT-4o Vision, and send result to Airtable."""
     image = request.files.get("photo")
     if not image:
         return jsonify({"error": "No photo uploaded"}), 400
 
     try:
-        # Encode the image as base64
+        # Convert image to base64
         image_bytes = image.read()
         base64_image = base64.b64encode(image_bytes).decode("utf-8")
 
-        # Ask GPT-4o to analyze the image
-        response = openai.ChatCompletion.create(
+        # Call GPT-4o Vision using new SDK syntax
+        response = openai_client.chat.completions.create(
             model="gpt-4o",
             messages=[
                 {"role": "system", "content": "You extract pantry item names and perishability from photos."},
@@ -47,13 +47,13 @@ def pantry_photo_upload():
             max_tokens=150
         )
 
-        result = response.choices[0].message.content.strip()
-        item_info = eval(result)
-        item_name = item_info["item"].strip().title()
-        is_perishable = item_info["perishable"]
+        result_text = response.choices[0].message.content.strip()
+        item_data = eval(result_text)
+        item_name = item_data["item"].strip().title()
+        is_perishable = item_data["perishable"]
 
-        # Upload to Airtable
-        payload = {
+        # Send to Airtable
+        airtable_payload = {
             "fields": {
                 "Item Name": item_name,
                 "Perishable": is_perishable,
@@ -61,7 +61,8 @@ def pantry_photo_upload():
             }
         }
 
-        airtable_response = requests.post(AIRTABLE_URL, headers=AIRTABLE_HEADERS, json=payload)
+        airtable_response = requests.post(AIRTABLE_URL, headers=AIRTABLE_HEADERS, json=airtable_payload)
+
         if airtable_response.status_code != 200:
             return jsonify({"error": "Failed to upload to Airtable", "details": airtable_response.text}), 500
 
