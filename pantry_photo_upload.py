@@ -10,9 +10,9 @@ pantry_bp = Blueprint("pantry_bp", __name__)
 
 # Load secrets from environment
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-AIRTABLE_TOKEN = os.getenv("AIRTABLE_TOKEN")
-AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")
-AIRTABLE_TABLE_NAME = os.getenv("AIRTABLE_TABLE_NAME")
+AIRTABLE_TOKEN = os.getenv("PANTRY_AIRTABLE_TOKEN")
+AIRTABLE_BASE_ID = os.getenv("PANTRY_AIRTABLE_BASE_ID")
+AIRTABLE_TABLE_NAME = os.getenv("PANTRY_AIRTABLE_TABLE")
 
 # Setup clients
 openai_client = openai.OpenAI(api_key=OPENAI_API_KEY)
