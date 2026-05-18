@@ -11,7 +11,7 @@ import requests
 from bs4 import BeautifulSoup
 from pydantic import BaseModel, Field
 
-from food_everything.config import openai_client, supabase_client
+from food_everything.config import openai_client
 
 SYSTEM_PROMPT = """You extract structured recipes from article text.
 
@@ -131,48 +131,11 @@ def extract_recipe(article_text: str) -> ExtractedRecipe:
 
 
 def write_to_supabase(recipe: ExtractedRecipe, url: str, raw_text: str) -> str:
-    sb = supabase_client()
-    recipe_row = {
-        "title": recipe.title,
-        "source_url": url,
-        "source_platform": "substack",
-        "author": recipe.author,
-        "yield": recipe.recipe_yield,
-        "prep_time": recipe.prep_time,
-        "cook_time": recipe.cook_time,
-        "total_time": recipe.total_time,
-        "cuisine": recipe.cuisine,
-        "course": recipe.course,
-        "holiday": recipe.holiday,
-        "season": recipe.season,
-        "instructions": recipe.instructions,
-        "tags": recipe.tags,
-        "extraction_confidence": recipe.extraction_confidence,
-        "raw_text": raw_text,
-        # processing_status: omitted intentionally. User opted out of the
-        # human-review workflow given expected volume; DB default ('approved')
-        # applies. See feedback memory and migration notes.
-    }
-    result = sb.table("recipes").insert(recipe_row).execute()
-    recipe_id = result.data[0]["id"]
+    from food_everything.persist import write_recipe
 
-    if recipe.ingredients:
-        sb.table("recipe_ingredients").insert(
-            [
-                {
-                    "recipe_id": recipe_id,
-                    "name": ing.name,
-                    "name_raw": ing.name_raw,
-                    "amount": ing.amount,
-                    "unit": ing.unit,
-                    "prep_note": ing.prep_note,
-                    "category": ing.category,
-                }
-                for ing in recipe.ingredients
-            ]
-        ).execute()
-
-    return recipe_id
+    return write_recipe(
+        recipe, source_url=url, source_platform="substack", raw_text=raw_text
+    )
 
 
 def ingest(url: str) -> str:

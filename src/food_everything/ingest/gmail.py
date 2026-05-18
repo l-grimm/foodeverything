@@ -34,6 +34,7 @@ from bs4 import BeautifulSoup
 from food_everything.config import supabase_client
 from food_everything.ingest import image as image_ingester
 from food_everything.ingest import substack as text_ingester
+from food_everything.persist import write_recipe
 
 IMAP_HOST = "imap.gmail.com"
 IMAP_PORT = 993
@@ -167,6 +168,25 @@ def dispatch_ingest(url: str) -> str:
     return text_ingester.ingest(url)
 
 
+def ingest_from_email_body(html_body: str) -> str:
+    """Last-resort fallback: extract a recipe directly from the email body
+    when no article URL is available or the URL won't fetch. Used for
+    newsletters that paste the full recipe into the message (Molly Baz,
+    Bittman Project, Mushroom Digest, etc.)."""
+    soup = BeautifulSoup(html_body, "html.parser")
+    for tag in soup.select("style, script, head"):
+        tag.decompose()
+    text = soup.get_text(separator="\n").strip()
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    if len(text) < 200:
+        raise ValueError(f"email body too short to contain a recipe ({len(text)} chars)")
+    print(f"  -> email body pipeline (text={len(text)} chars)", file=sys.stderr)
+    recipe = text_ingester.extract_recipe(text)
+    return write_recipe(
+        recipe, source_url=None, source_platform="manual", raw_text=text
+    )
+
+
 def already_ingested(sb, message_id: str) -> bool:
     """Only successfully-ingested emails are 'done'. Failed/skipped rows are
     eligible for retry on the next run."""
@@ -216,7 +236,60 @@ def parse_date(raw: str) -> Optional[str]:
         return None
 
 
-def run(label: str = "recipes", limit: Optional[int] = None) -> None:
+def _uids_for_retry_status(conn, sb, retry_status: str) -> list[bytes]:
+    """Find IMAP UIDs for messages previously recorded with the given status.
+
+    Strategy: pull the target Message-IDs from email_ingestions, then bulk-fetch
+    just the Message-ID headers for every message in the mailbox in a single
+    IMAP round-trip and locally filter. Cheaper and more robust than per-message
+    HEADER search (which has fiddly quoting rules)."""
+    result = (
+        sb.table("email_ingestions")
+        .select("gmail_message_id")
+        .eq("status", retry_status)
+        .execute()
+    )
+    targets = {row["gmail_message_id"].strip().strip("<>") for row in result.data}
+    print(
+        f"Looking up {len(targets)} {retry_status!r} messages...",
+        file=sys.stderr,
+    )
+    if not targets:
+        return []
+
+    status, data = conn.search(None, "ALL")
+    if status != "OK" or not data[0]:
+        return []
+    all_uids = data[0].split()
+
+    status, fetched = conn.fetch(
+        b",".join(all_uids), "(BODY.PEEK[HEADER.FIELDS (MESSAGE-ID)])"
+    )
+    if status != "OK":
+        return []
+
+    mid_re = re.compile(r"Message-ID:\s*<([^>]+)>", re.IGNORECASE)
+    uid_re = re.compile(rb"^(\d+)\s")
+    matched: list[bytes] = []
+    for item in fetched:
+        if not (isinstance(item, tuple) and len(item) >= 2):
+            continue
+        marker, header_bytes = item[0], item[1]
+        m = uid_re.match(marker)
+        if not m:
+            continue
+        header_text = header_bytes.decode("utf-8", errors="ignore")
+        mid_match = mid_re.search(header_text)
+        if mid_match and mid_match.group(1).strip() in targets:
+            matched.append(m.group(1))
+    return matched
+
+
+def run(
+    label: str = "recipes",
+    limit: Optional[int] = None,
+    retry_status: Optional[str] = None,
+) -> None:
     sb = supabase_client()
     conn = get_imap()
     try:
@@ -228,15 +301,27 @@ def run(label: str = "recipes", limit: Optional[int] = None) -> None:
                 file=sys.stderr,
             )
             sys.exit(1)
-        status, data = conn.search(None, "ALL")
-        if status != "OK":
-            print("Failed to list messages", file=sys.stderr)
-            sys.exit(1)
-        # Process newest first (highest IMAP UIDs). For backfill this surfaces
-        # the most-likely-still-resolvable URLs first; for incremental polling
-        # it means a low --limit catches recent additions.
-        uids = sorted(data[0].split(), key=int, reverse=True)
-        print(f"Found {len(uids)} messages in label {label!r}", file=sys.stderr)
+
+        if retry_status:
+            uids = _uids_for_retry_status(conn, sb, retry_status)
+            # Re-processing previously-failed/skipped emails: delete the old
+            # rows so the new run's upsert lands a fresh status.
+            if uids:
+                sb.table("email_ingestions").delete().eq(
+                    "status", retry_status
+                ).execute()
+            print(f"Retry mode: {len(uids)} message(s)", file=sys.stderr)
+        else:
+            status, data = conn.search(None, "ALL")
+            if status != "OK":
+                print("Failed to list messages", file=sys.stderr)
+                sys.exit(1)
+            # Process newest first (highest IMAP UIDs). For backfill this
+            # surfaces the most-likely-still-resolvable URLs first; for
+            # incremental polling it means a low --limit catches new arrivals.
+            uids = sorted(data[0].split(), key=int, reverse=True)
+            print(f"Found {len(uids)} messages in label {label!r}", file=sys.stderr)
+
         if limit:
             uids = uids[:limit]
             print(f"Processing newest {limit}", file=sys.stderr)
@@ -265,48 +350,46 @@ def run(label: str = "recipes", limit: Optional[int] = None) -> None:
             print(f"\nProcessing: {subject!r}", file=sys.stderr)
             body = email_body_html(msg)
             url = extract_recipe_url(body)
-            if not url:
-                print("  no URL found", file=sys.stderr)
-                record_ingestion(
-                    sb,
-                    message_id=message_id,
-                    recipe_id=None,
-                    status="skipped",
-                    error="no URL found in email body",
-                    subject=subject,
-                    from_addr=from_addr,
-                    received_at=received_at,
-                )
-                processed += 1
-                continue
+            recipe_id: Optional[str] = None
+            error: Optional[str] = None
+            outcome: str  # 'ingested' | 'failed' | 'skipped'
 
-            print(f"  URL: {url}", file=sys.stderr)
             try:
-                recipe_id = dispatch_ingest(url)
-                record_ingestion(
-                    sb,
-                    message_id=message_id,
-                    recipe_id=recipe_id,
-                    status="ingested",
-                    error=None,
-                    subject=subject,
-                    from_addr=from_addr,
-                    received_at=received_at,
-                )
-                succeeded += 1
+                if url:
+                    print(f"  URL: {url}", file=sys.stderr)
+                    try:
+                        recipe_id = dispatch_ingest(url)
+                    except Exception as url_err:
+                        print(
+                            f"  URL failed ({url_err}); trying email body...",
+                            file=sys.stderr,
+                        )
+                        recipe_id = ingest_from_email_body(body)
+                else:
+                    print("  no URL found; trying email body...", file=sys.stderr)
+                    recipe_id = ingest_from_email_body(body)
+                outcome = "ingested"
             except Exception as e:
-                print(f"  failed: {e}", file=sys.stderr)
-                record_ingestion(
-                    sb,
-                    message_id=message_id,
-                    recipe_id=None,
-                    status="failed",
-                    error=str(e)[:1000],
-                    subject=subject,
-                    from_addr=from_addr,
-                    received_at=received_at,
-                )
+                error = str(e)[:1000]
+                outcome = "failed" if url else "skipped"
+                print(f"  {outcome}: {e}", file=sys.stderr)
+
+            record_ingestion(
+                sb,
+                message_id=message_id,
+                recipe_id=recipe_id,
+                status=outcome,
+                error=error,
+                subject=subject,
+                from_addr=from_addr,
+                received_at=received_at,
+            )
+            if outcome == "ingested":
+                succeeded += 1
+            elif outcome == "failed":
                 failed += 1
+            else:
+                skipped += 1
             processed += 1
 
         print(
@@ -337,5 +420,14 @@ if __name__ == "__main__":
         default=None,
         help="Process at most N messages (useful for testing)",
     )
+    parser.add_argument(
+        "--retry-status",
+        choices=["failed", "skipped"],
+        default=None,
+        help=(
+            "Re-process only emails with this prior status. Useful after fixing "
+            "a bug or adding a new extraction path."
+        ),
+    )
     args = parser.parse_args()
-    run(label=args.label, limit=args.limit)
+    run(label=args.label, limit=args.limit, retry_status=args.retry_status)

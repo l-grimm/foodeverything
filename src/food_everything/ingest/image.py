@@ -15,7 +15,7 @@ from urllib.parse import urlparse
 import requests
 from bs4 import BeautifulSoup
 
-from food_everything.config import openai_client, supabase_client
+from food_everything.config import openai_client
 from food_everything.ingest.substack import SYSTEM_PROMPT, ExtractedRecipe
 
 
@@ -85,45 +85,14 @@ def extract_recipe_from_images(image_urls: list[str]) -> ExtractedRecipe:
 def write_to_supabase(
     recipe: ExtractedRecipe, url: str, platform: str, image_urls: list[str]
 ) -> str:
-    sb = supabase_client()
-    recipe_row = {
-        "title": recipe.title,
-        "source_url": url,
-        "source_platform": platform,
-        "author": recipe.author,
-        "yield": recipe.recipe_yield,
-        "prep_time": recipe.prep_time,
-        "cook_time": recipe.cook_time,
-        "total_time": recipe.total_time,
-        "cuisine": recipe.cuisine,
-        "course": recipe.course,
-        "holiday": recipe.holiday,
-        "season": recipe.season,
-        "instructions": recipe.instructions,
-        "tags": recipe.tags,
-        "extraction_confidence": recipe.extraction_confidence,
-        "raw_text": "[IMAGE_BASED_EXTRACTION]\n" + "\n".join(image_urls),
-    }
-    result = sb.table("recipes").insert(recipe_row).execute()
-    recipe_id = result.data[0]["id"]
+    from food_everything.persist import write_recipe
 
-    if recipe.ingredients:
-        sb.table("recipe_ingredients").insert(
-            [
-                {
-                    "recipe_id": recipe_id,
-                    "name": ing.name,
-                    "name_raw": ing.name_raw,
-                    "amount": ing.amount,
-                    "unit": ing.unit,
-                    "prep_note": ing.prep_note,
-                    "category": ing.category,
-                }
-                for ing in recipe.ingredients
-            ]
-        ).execute()
-
-    return recipe_id
+    return write_recipe(
+        recipe,
+        source_url=url,
+        source_platform=platform,
+        raw_text="[IMAGE_BASED_EXTRACTION]\n" + "\n".join(image_urls),
+    )
 
 
 def ingest(url: str) -> str:
