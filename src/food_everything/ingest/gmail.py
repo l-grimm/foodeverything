@@ -155,17 +155,19 @@ def extract_recipe_url(body: str) -> Optional[str]:
 
 
 def dispatch_ingest(url: str) -> str:
-    """Choose text vs Vision pipeline based on the page content."""
-    article_text = text_ingester.fetch_article(url)
-    images = image_ingester.fetch_image_urls(url)
-    if len(article_text) < SHORT_ARTICLE_THRESHOLD and images:
-        print(
-            f"  -> Vision pipeline (text={len(article_text)} chars, {len(images)} images)",
-            file=sys.stderr,
-        )
+    """Choose between text/JSON-LD and Vision pipelines for a page.
+
+    The text pipeline now uses JSON-LD when present and refuses extraction
+    when neither JSON-LD nor substantial article text is available. On that
+    refusal we fall back to Vision, which handles pages where the recipe
+    lives in images (e.g., photographed cookbook pages).
+    """
+    try:
+        print("  -> text/JSON-LD pipeline", file=sys.stderr)
+        return text_ingester.ingest(url)
+    except ValueError as e:
+        print(f"  text pipeline refused ({e}); trying Vision...", file=sys.stderr)
         return image_ingester.ingest(url)
-    print(f"  -> text pipeline (text={len(article_text)} chars)", file=sys.stderr)
-    return text_ingester.ingest(url)
 
 
 def ingest_from_email_body(html_body: str) -> str:
