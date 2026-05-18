@@ -18,7 +18,19 @@ def write_recipe(
     source_platform: str,
     raw_text: str,
 ) -> str:
-    """Insert a recipe + its ingredients. Returns the new recipe id."""
+    """Insert a recipe + its ingredients. Returns the new recipe id.
+
+    Raises ValueError when the extraction produced zero ingredients — a
+    recipe without ingredients is almost always a degenerate parse (e.g. a
+    newsletter teaser where the LLM grabbed the title but no recipe content
+    was available). Better to surface this as a failure in
+    email_ingestions.error than to write misleading high-confidence stubs.
+    """
+    if not recipe.ingredients:
+        raise ValueError(
+            f"refusing to write recipe with 0 ingredients "
+            f"(title={recipe.title!r}); extraction is likely incomplete"
+        )
     sb = supabase_client()
     recipe_row = {
         "title": recipe.title,
