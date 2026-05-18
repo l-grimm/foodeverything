@@ -17,6 +17,7 @@ create table public.recipes (
     tags                  text[],
     cuisine               text,
     is_family_recipe      boolean        default false,
+    is_favorite           boolean        default false,  -- added by migration 0002
     course                text,
     holiday               text,
     season                text,
