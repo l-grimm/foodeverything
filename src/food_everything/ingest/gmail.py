@@ -17,14 +17,17 @@ Usage:
 """
 
 import argparse
+import base64
 import email
 import imaplib
+import json
 import os
 import re
 import sys
 from email.message import Message
 from email.utils import parsedate_to_datetime
 from typing import Optional
+from urllib.parse import parse_qs, urlparse
 
 from bs4 import BeautifulSoup
 
@@ -36,10 +39,21 @@ IMAP_HOST = "imap.gmail.com"
 IMAP_PORT = 993
 SHORT_ARTICLE_THRESHOLD = 1500  # below this, prefer Vision if images present
 
-SUBSTACK_URL_RE = re.compile(r'https?://[^\s"<>]*substack\.com/p/[^\s"<>]+')
-ANY_URL_RE = re.compile(r'https?://[^\s"<>]+')
+SKIP_URL_HINTS = (
+    "unsubscribe",
+    "manage",
+    "preferences",
+    "/click",
+    "list-manage",
+    "facebook.com/sharer",
+    "twitter.com/share",
+    "x.com/share",
+    "linkedin.com/share",
+    "pinterest.com/pin/create",
+    "/share?",
+)
 
-SKIP_URL_HINTS = ("unsubscribe", "manage", "preferences", "/click", "list-manage")
+ASSET_EXTENSIONS = (".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".css", ".js", ".ico")
 
 
 def get_imap() -> imaplib.IMAP4_SSL:
@@ -73,20 +87,69 @@ def _clean_url(url: str) -> str:
     return url.rstrip('">\'').rstrip("?&")
 
 
+def resolve_redirect(url: str) -> str:
+    """Decode substack.com/redirect/<n>/<JWT> tracking URLs to their real
+    destination.
+
+    Substack wraps every outbound link in a signed-but-publicly-readable JWT.
+    The signature expires (~30 days) which is why old emails 400 when you hit
+    the redirect endpoint directly. The destination is in the JWT payload's
+    'e' field; if 'e' has a 'next' query param, that's the final article URL.
+    """
+    if "substack.com/redirect/" not in url:
+        return url
+    m = re.search(r"/redirect/\d+/([^/?#\s]+)", url)
+    if not m:
+        return url
+    token = m.group(1)
+    payload_b64 = token.split(".")[0]
+    try:
+        padded = payload_b64 + "=" * (-len(payload_b64) % 4)
+        data = json.loads(base64.urlsafe_b64decode(padded).decode("utf-8"))
+    except (ValueError, json.JSONDecodeError, UnicodeDecodeError):
+        return url
+    encoded = data.get("e", "")
+    if not encoded:
+        return url
+    parsed = urlparse(encoded)
+    next_url = parse_qs(parsed.query).get("next", [None])[0]
+    if next_url:
+        return next_url
+    # Strip the tracking query string off `e`
+    return f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
+
+
 def extract_recipe_url(body: str) -> Optional[str]:
-    """Find the primary article URL in an email body. Prefers Substack /p/ permalinks."""
+    """Find the primary article URL in an email body.
+
+    Strategy: ONLY look at <a href=...> tags (never body-text regex — that
+    catches CSS `background: url(...)` strings). Resolve any Substack
+    tracking-redirect through its JWT payload. Then prefer Substack /p/
+    permalinks, then any plausible article link.
+    """
     soup = BeautifulSoup(body, "html.parser")
+    resolved: list[str] = []
     for a in soup.find_all("a", href=True):
         href = a["href"]
+        if not href.startswith("http"):
+            continue
+        resolved.append(resolve_redirect(href))
+
+    def is_plausible(href: str) -> bool:
+        lower = href.lower()
+        if any(skip in lower for skip in SKIP_URL_HINTS):
+            return False
+        path = lower.split("?", 1)[0]
+        if path.endswith(ASSET_EXTENSIONS):
+            return False
+        return True
+
+    for href in resolved:
         if "substack.com/p/" in href:
             return _clean_url(href)
-    m = SUBSTACK_URL_RE.search(body)
-    if m:
-        return _clean_url(m.group(0))
-    for url in ANY_URL_RE.findall(body):
-        if any(skip in url for skip in SKIP_URL_HINTS):
-            continue
-        return _clean_url(url)
+    for href in resolved:
+        if is_plausible(href):
+            return _clean_url(href)
     return None
 
 
@@ -105,10 +168,13 @@ def dispatch_ingest(url: str) -> str:
 
 
 def already_ingested(sb, message_id: str) -> bool:
+    """Only successfully-ingested emails are 'done'. Failed/skipped rows are
+    eligible for retry on the next run."""
     result = (
         sb.table("email_ingestions")
         .select("id")
         .eq("gmail_message_id", message_id)
+        .eq("status", "ingested")
         .execute()
     )
     return len(result.data) > 0
@@ -125,7 +191,9 @@ def record_ingestion(
     from_addr: str,
     received_at: Optional[str],
 ) -> None:
-    sb.table("email_ingestions").insert(
+    """Upsert by gmail_message_id so retries of previously-failed/skipped
+    emails update the existing row rather than violating the unique index."""
+    sb.table("email_ingestions").upsert(
         {
             "gmail_message_id": message_id,
             "recipe_id": recipe_id,
@@ -134,7 +202,8 @@ def record_ingestion(
             "email_subject": subject,
             "email_from": from_addr,
             "email_received_at": received_at,
-        }
+        },
+        on_conflict="gmail_message_id",
     ).execute()
 
 
@@ -163,11 +232,14 @@ def run(label: str = "recipes", limit: Optional[int] = None) -> None:
         if status != "OK":
             print("Failed to list messages", file=sys.stderr)
             sys.exit(1)
-        uids = data[0].split()
+        # Process newest first (highest IMAP UIDs). For backfill this surfaces
+        # the most-likely-still-resolvable URLs first; for incremental polling
+        # it means a low --limit catches recent additions.
+        uids = sorted(data[0].split(), key=int, reverse=True)
         print(f"Found {len(uids)} messages in label {label!r}", file=sys.stderr)
         if limit:
             uids = uids[:limit]
-            print(f"Processing first {limit}", file=sys.stderr)
+            print(f"Processing newest {limit}", file=sys.stderr)
 
         processed = skipped = succeeded = failed = 0
         for uid in uids:
