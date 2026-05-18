@@ -64,3 +64,16 @@ create table public.substack_feeds (
     active       boolean default true,
     created_at   timestamptz default now()
 );
+
+-- Added by migration 0003.
+create table public.email_ingestions (
+    id                uuid primary key default gen_random_uuid(),
+    gmail_message_id  text unique not null,
+    recipe_id         uuid references public.recipes(id) on delete set null,
+    status            text check (status in ('ingested', 'failed', 'skipped')),
+    error             text,
+    email_subject     text,
+    email_from        text,
+    email_received_at timestamptz,
+    ingested_at       timestamptz default now()
+);
