@@ -1,7 +1,7 @@
 from pyairtable import Table
 
 # Airtable config
-AIRTABLE_API_KEY = "pat5L1fzRwBSQqG6W.8e47bd3d4fe97db8b3388889b522df8b068cb2f8ca8c749e3e031fb2b54ec1a2 "
+AIRTABLE_API_KEY = "REDACTED-2026-05-18"  # archived; rotate this PAT in Airtable
 AIRTABLE_BASE_ID = "app0GloGj3Fu5To0O"
 AIRTABLE_TABLE_NAME = "Recipes"
 
