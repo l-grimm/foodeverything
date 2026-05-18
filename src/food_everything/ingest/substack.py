@@ -24,12 +24,11 @@ For each ingredient, separate:
 - amount: numeric quantity as a string (e.g., "1", "1/2", "2-3"); null if not given
 - unit: e.g., "tbsp", "cup", "g"; null if no unit
 - prep_note: e.g., "chopped", "room temperature"; null if none
-- category: high-level grouping (e.g., "dairy", "produce", "pantry", "protein")
+- category: must be exactly one of: produce, dairy, protein, grain, pantry_staple, other
 
 Set extraction_confidence to:
-- "high" if the article had a clean, complete recipe
-- "medium" if you had to interpolate or some fields were missing
-- "low" if the article barely qualified as a recipe
+- "high" if the article had a clean, complete recipe you could parse confidently
+- "needs_review" if you had to interpolate, fields were missing, or anything was ambiguous
 """
 
 
@@ -56,7 +55,7 @@ class ExtractedRecipe(BaseModel):
     instructions: list[str] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
     ingredients: list[ExtractedIngredient] = Field(default_factory=list)
-    extraction_confidence: Literal["high", "medium", "low"] = "medium"
+    extraction_confidence: Literal["high", "needs_review"]
 
 
 def fetch_article(url: str) -> str:
@@ -106,7 +105,8 @@ def write_to_supabase(recipe: ExtractedRecipe, url: str, raw_text: str) -> str:
         "tags": recipe.tags,
         "extraction_confidence": recipe.extraction_confidence,
         "raw_text": raw_text,
-        "processing_status": "extracted",
+        # TODO: processing_status has a CHECK constraint; allowed values unknown.
+        # Leaving NULL until we query the constraint definition from Supabase.
     }
     result = sb.table("recipes").insert(recipe_row).execute()
     recipe_id = result.data[0]["id"]
