@@ -18,17 +18,52 @@ SYSTEM_PROMPT = """You extract structured recipes from article text.
 The article may be primarily storytelling with a recipe embedded, or it may be a pure recipe.
 Extract only the actual recipe content; ignore storytelling, anecdotes, and commentary.
 
-For each ingredient, separate:
-- name: the canonical ingredient (e.g., "butter", "all-purpose flour")
-- name_raw: the verbatim text from the recipe (e.g., "unsalted butter, room temperature")
-- amount: numeric quantity as a string (e.g., "1", "1/2", "2-3"); null if not given
-- unit: e.g., "tbsp", "cup", "g"; null if no unit
-- prep_note: e.g., "chopped", "room temperature"; null if none
-- category: must be exactly one of: produce, dairy, protein, grain, pantry_staple, other
+STANDARD FIELDS — always extract these when present in the article:
+- title: the recipe's name
+- author: who wrote or created the recipe (often the article author)
+- cuisine: e.g. "Italian", "Chinese", "Mexican" when clear; NULL when ambiguous
+- recipe_yield: serving size or yield as stated ("2 servings", "1 loaf", "2 dozen")
+- instructions: each step as a separate string in the array
 
-Set extraction_confidence to:
-- "high" if the article had a clean, complete recipe you could parse confidently
-- "needs_review" if you had to interpolate, fields were missing, or anything was ambiguous
+INGREDIENTS — for each, separate:
+- name: canonical ingredient ("butter", "all-purpose flour")
+- name_raw: verbatim text from the recipe
+- amount: numeric quantity as a string ("1", "1/2", "2-3"); null if not given
+- unit: e.g. "tbsp", "cup", "g"; null if no unit
+- prep_note: e.g. "chopped", "fresh", "canned"; null if none
+- category: exactly one of: produce, dairy, protein, grain, pantry_staple, other
+
+TIME FIELDS (prep_time, cook_time, total_time):
+Only fill these if the recipe states them VERBATIM (e.g. "Prep: 15 min").
+Do NOT estimate or infer from instructions. Leave NULL otherwise.
+
+COURSE: one of breakfast, lunch, dinner, appetizer, side, dessert, snack, drink.
+Only set when clear from the recipe. NULL when ambiguous.
+
+TAGS: 0 to 4 short free-text labels useful for filtering, e.g. "weeknight",
+"one-pot", "make-ahead", "vegan", "gluten-free". Only confidently-true tags.
+Do not pad.
+
+HOLIDAY: NULL unless the article text EXPLICITLY associates the recipe with a
+holiday ("for Thanksgiving", "Christmas Eve tradition", "Passover seder",
+"Easter brunch", etc.). Do NOT infer from celebratory tone or seasonal vibes.
+
+SEASON: derive from FRESH local seasonal ingredients (Northeast US growing seasons).
+- spring: ramps, asparagus, fiddleheads, peas, rhubarb, strawberries, morels
+- summer: tomatoes, corn, zucchini, summer squash, stone fruit, berries, basil,
+  cucumbers, eggplant, peppers
+- fall: winter squash (butternut, kabocha, delicata), apples, pears, brussels
+  sprouts, root vegetables, cranberries
+- winter: hardy greens (kale, collards), citrus, persimmons
+
+CRITICAL: only FRESH forms count. Canned, jarred, dried, frozen, or preserved
+versions carry NO seasonal signal — check name_raw and prep_note for those words.
+If ingredients span multiple seasons, set season=NULL. Do NOT infer season from
+article-text vibes when ingredients don't support it.
+
+EXTRACTION_CONFIDENCE:
+- "high" — clean, complete recipe parsed confidently
+- "needs_review" — interpolation, missing fields, or anything ambiguous
 """
 
 
@@ -49,9 +84,11 @@ class ExtractedRecipe(BaseModel):
     cook_time: Optional[str] = None
     total_time: Optional[str] = None
     cuisine: Optional[str] = None
-    course: Optional[str] = None
+    course: Optional[
+        Literal["breakfast", "lunch", "dinner", "appetizer", "side", "dessert", "snack", "drink"]
+    ] = None
     holiday: Optional[str] = None
-    season: Optional[str] = None
+    season: Optional[Literal["spring", "summer", "fall", "winter"]] = None
     instructions: list[str] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
     ingredients: list[ExtractedIngredient] = Field(default_factory=list)
@@ -105,8 +142,9 @@ def write_to_supabase(recipe: ExtractedRecipe, url: str, raw_text: str) -> str:
         "tags": recipe.tags,
         "extraction_confidence": recipe.extraction_confidence,
         "raw_text": raw_text,
-        # TODO: processing_status has a CHECK constraint; allowed values unknown.
-        # Leaving NULL until we query the constraint definition from Supabase.
+        # processing_status: omitted intentionally. User opted out of the
+        # human-review workflow given expected volume; DB default ('approved')
+        # applies. See feedback memory and migration notes.
     }
     result = sb.table("recipes").insert(recipe_row).execute()
     recipe_id = result.data[0]["id"]
