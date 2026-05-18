@@ -107,6 +107,8 @@ def fetch_article(url: str) -> str:
     for tag in soup.select("script, style, nav, header, footer, noscript"):
         tag.decompose()
     main = soup.select_one("main") or soup.select_one('[role="main"]') or soup.body
+    if main is None:
+        return soup.get_text(separator="\n\n").strip()
     return main.get_text(separator="\n\n").strip()
 
 
@@ -120,7 +122,12 @@ def extract_recipe(article_text: str) -> ExtractedRecipe:
         ],
         response_format=ExtractedRecipe,
     )
-    return response.choices[0].message.parsed
+    message = response.choices[0].message
+    if message.refusal:
+        raise ValueError(f"GPT refused extraction: {message.refusal}")
+    if message.parsed is None:
+        raise ValueError("GPT did not return a parsed recipe (article may not contain one)")
+    return message.parsed
 
 
 def write_to_supabase(recipe: ExtractedRecipe, url: str, raw_text: str) -> str:

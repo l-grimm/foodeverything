@@ -74,7 +74,12 @@ def extract_recipe_from_images(image_urls: list[str]) -> ExtractedRecipe:
         ],
         response_format=ExtractedRecipe,
     )
-    return response.choices[0].message.parsed
+    message = response.choices[0].message
+    if message.refusal:
+        raise ValueError(f"GPT refused extraction: {message.refusal}")
+    if message.parsed is None:
+        raise ValueError("GPT did not return a parsed recipe (images may not contain one)")
+    return message.parsed
 
 
 def write_to_supabase(
