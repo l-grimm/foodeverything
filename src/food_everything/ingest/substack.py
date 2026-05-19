@@ -100,6 +100,7 @@ class ExtractedRecipe(BaseModel):
     ] = None
     holiday: Optional[str] = None
     season: Optional[Literal["spring", "summer", "fall", "winter"]] = None
+    my_notes: Optional[str] = None  # populated by family-recipe OCR for margin annotations; null otherwise
     instructions: list[str] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
     ingredients: list[ExtractedIngredient] = Field(default_factory=list)

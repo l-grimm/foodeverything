@@ -8,6 +8,7 @@ dependencies = [
     "fastapi>=0.115",
     "openai>=1.40",
     "pydantic>=2.7",
+    "pypdfium2>=4.30",
     "python-dotenv>=1.0",
     "requests>=2.31",
     "supabase>=2.5",

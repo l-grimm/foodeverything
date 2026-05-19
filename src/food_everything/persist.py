@@ -45,6 +45,7 @@ def write_recipe(
         "course": recipe.course,
         "holiday": recipe.holiday,
         "season": recipe.season,
+        "my_notes": recipe.my_notes,
         "instructions": recipe.instructions,
         "tags": recipe.tags,
         "extraction_confidence": recipe.extraction_confidence,
