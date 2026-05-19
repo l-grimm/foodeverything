@@ -7,7 +7,6 @@ dependencies = [
     "beautifulsoup4>=4.12",
     "fastapi>=0.115",
     "openai>=1.40",
-    "playwright>=1.48",
     "pydantic>=2.7",
     "python-dotenv>=1.0",
     "requests>=2.31",

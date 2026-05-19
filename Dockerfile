@@ -9,9 +9,6 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 
-# Chromium + system deps for Playwright — slow (~3-5min), cache aggressively
-RUN .venv/bin/playwright install --with-deps chromium
-
 # Source and final project install (installs food-everything package into venv)
 COPY src ./src
 RUN uv sync --frozen --no-dev

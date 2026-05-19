@@ -1,7 +1,9 @@
 """TikTok URL -> recipes + recipe_ingredients rows.
 
-Fetches the video caption (which TikTok renders client-side, so a real
-headless browser is required) and runs the existing extract_recipe pipeline.
+Reads TikTok's server-rendered `__UNIVERSAL_DATA_FOR_REHYDRATION__` JSON
+blob from the page HTML (one plain HTTP GET; no headless browser required).
+That blob contains the video description and author. The description is fed
+through the standard extract_recipe pipeline.
 
 CLI usage:
     uv run python -m food_everything.ingest.tiktok https://www.tiktok.com/@user/video/123
@@ -10,35 +12,50 @@ In production the FastAPI webhook (food_everything.api.main) calls ingest()
 directly when iOS Shortcut POSTs a URL.
 """
 
-import asyncio
+import json
+import re
 import sys
 
-from playwright.async_api import async_playwright
+import requests
 
 from food_everything.ingest.substack import extract_recipe
 from food_everything.persist import write_recipe
 
-CAPTION_SELECTOR = '[data-e2e="browse-video-desc"]'
-
-
-async def _fetch_caption_async(url: str) -> str:
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(
-            headless=True,
-            args=["--no-sandbox", "--disable-dev-shm-usage"],
-        )
-        try:
-            page = await browser.new_page()
-            await page.goto(url, timeout=60_000)
-            await page.wait_for_selector(CAPTION_SELECTOR, timeout=10_000)
-            return await page.locator(CAPTION_SELECTOR).inner_text()
-        finally:
-            await browser.close()
+USER_AGENT = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+)
+REHYDRATION_RE = re.compile(
+    r'<script id="__UNIVERSAL_DATA_FOR_REHYDRATION__"[^>]*>(.+?)</script>',
+    re.DOTALL,
+)
 
 
 def fetch_caption(url: str) -> str:
-    """Run the async Playwright fetch synchronously."""
-    return asyncio.run(_fetch_caption_async(url))
+    """Pull the video description out of TikTok's embedded rehydration JSON.
+
+    Raises ValueError if the JSON blob is missing or the path inside it is
+    unexpected (private video, deleted video, TikTok changed their format).
+    """
+    resp = requests.get(url, headers={"User-Agent": USER_AGENT}, timeout=30)
+    resp.raise_for_status()
+    m = REHYDRATION_RE.search(resp.text)
+    if not m:
+        raise ValueError(
+            "TikTok rehydration JSON not found in page "
+            "(video may be private, deleted, or TikTok's HTML format changed)"
+        )
+    try:
+        data = json.loads(m.group(1))
+        item = data["__DEFAULT_SCOPE__"]["webapp.video-detail"]["itemInfo"]["itemStruct"]
+    except (json.JSONDecodeError, KeyError, TypeError) as e:
+        raise ValueError(f"TikTok JSON structure unexpected: {e}")
+    desc = (item.get("desc") or "").strip()
+    if not desc:
+        raise ValueError("TikTok video has no description")
+    author = (item.get("author") or {}).get("uniqueId", "")
+    # Prefix author so GPT can attribute the recipe
+    return f"@{author}\n\n{desc}" if author else desc
 
 
 def ingest(url: str) -> str:
