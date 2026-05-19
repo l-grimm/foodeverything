@@ -7,6 +7,7 @@ dependencies = [
     "beautifulsoup4>=4.12",
     "fastapi>=0.115",
     "openai>=1.40",
+    "pillow>=10.0",
     "pydantic>=2.7",
     "pypdfium2>=4.30",
     "python-dotenv>=1.0",
