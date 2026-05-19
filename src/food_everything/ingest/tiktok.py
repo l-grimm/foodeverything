@@ -15,9 +15,11 @@ directly when iOS Shortcut POSTs a URL.
 import json
 import re
 import sys
+from urllib.parse import urlparse
 
 import requests
 
+from food_everything.config import supabase_client
 from food_everything.ingest.substack import extract_recipe
 from food_everything.persist import write_recipe
 
@@ -29,6 +31,13 @@ REHYDRATION_RE = re.compile(
     r'<script id="__UNIVERSAL_DATA_FOR_REHYDRATION__"[^>]*>(.+?)</script>',
     re.DOTALL,
 )
+
+
+def canonical_url(url: str) -> str:
+    """Strip query parameters and trailing slashes so the same TikTok video
+    saved twice with different tracking params (e.g. _r, _t, lang) dedupes."""
+    p = urlparse(url)
+    return f"{p.scheme}://{p.netloc}{p.path}".rstrip("/")
 
 
 def fetch_caption(url: str) -> str:
@@ -59,7 +68,24 @@ def fetch_caption(url: str) -> str:
 
 
 def ingest(url: str) -> str:
-    print(f"Fetching TikTok caption for {url}", file=sys.stderr)
+    canonical = canonical_url(url)
+    # Dedup: if this TikTok is already ingested, return its existing recipe id
+    # without re-extracting (saves GPT cost on accidental re-shares).
+    sb = supabase_client()
+    existing = (
+        sb.table("recipes")
+        .select("id")
+        .eq("source_url", canonical)
+        .limit(1)
+        .execute()
+        .data
+    )
+    if existing:
+        recipe_id = existing[0]["id"]
+        print(f"Already ingested: recipe {recipe_id}", file=sys.stderr)
+        return recipe_id
+
+    print(f"Fetching TikTok caption for {canonical}", file=sys.stderr)
     caption = fetch_caption(url)
     print(f"Got {len(caption)} chars of caption", file=sys.stderr)
     print("Calling GPT-4o for extraction...", file=sys.stderr)
@@ -71,7 +97,7 @@ def ingest(url: str) -> str:
         file=sys.stderr,
     )
     recipe_id = write_recipe(
-        recipe, source_url=url, source_platform="tiktok", raw_text=caption
+        recipe, source_url=canonical, source_platform="tiktok", raw_text=caption
     )
     print(f"Wrote recipe {recipe_id}", file=sys.stderr)
     return recipe_id
