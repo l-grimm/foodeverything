@@ -31,6 +31,38 @@ REHYDRATION_RE = re.compile(
     r'<script id="__UNIVERSAL_DATA_FOR_REHYDRATION__"[^>]*>(.+?)</script>',
     re.DOTALL,
 )
+COMMENT_API = "https://www.tiktok.com/api/comment/list/"
+
+
+def fetch_creator_comments(aweme_id: str, creator_unique_id: str) -> list[str]:
+    """Pull the first page of comments and return ones authored by the
+    creator. Many TikTok recipe accounts post the actual recipe as a
+    pinned/creator comment with a 'Recipe in comments!' caption."""
+    if not aweme_id or not creator_unique_id:
+        return []
+    try:
+        r = requests.get(
+            COMMENT_API,
+            params={
+                "aweme_id": aweme_id,
+                "count": 20,
+                "cursor": 0,
+                "aid": 1988,  # TikTok web app id; without this the endpoint returns empty
+            },
+            headers={"User-Agent": USER_AGENT, "Referer": "https://www.tiktok.com/"},
+            timeout=15,
+        )
+        r.raise_for_status()
+        data = r.json()
+    except Exception:
+        return []
+    out: list[str] = []
+    for c in data.get("comments") or []:
+        if (c.get("user") or {}).get("unique_id") == creator_unique_id:
+            text = (c.get("text") or "").strip()
+            if text:
+                out.append(text)
+    return out
 
 
 def canonical_url(url: str) -> str:
@@ -41,10 +73,14 @@ def canonical_url(url: str) -> str:
 
 
 def fetch_caption(url: str) -> str:
-    """Pull the video description out of TikTok's embedded rehydration JSON.
+    """Pull video description + any creator-authored comments from TikTok.
 
-    Raises ValueError if the JSON blob is missing or the path inside it is
-    unexpected (private video, deleted video, TikTok changed their format).
+    Many creators put the actual recipe in a pinned/creator comment rather
+    than the caption ("Recipe in comments!" pattern). We pull both and let
+    GPT extract from the combined text.
+
+    Raises ValueError if the JSON blob is missing or the video has no
+    description and no creator comments.
     """
     resp = requests.get(url, headers={"User-Agent": USER_AGENT}, timeout=30)
     resp.raise_for_status()
@@ -60,11 +96,22 @@ def fetch_caption(url: str) -> str:
     except (json.JSONDecodeError, KeyError, TypeError) as e:
         raise ValueError(f"TikTok JSON structure unexpected: {e}")
     desc = (item.get("desc") or "").strip()
-    if not desc:
-        raise ValueError("TikTok video has no description")
-    author = (item.get("author") or {}).get("uniqueId", "")
-    # Prefix author so GPT can attribute the recipe
-    return f"@{author}\n\n{desc}" if author else desc
+    author = item.get("author") or {}
+    author_id = author.get("uniqueId", "")
+    aweme_id = item.get("id", "")
+    creator_comments = fetch_creator_comments(aweme_id, author_id)
+
+    if not desc and not creator_comments:
+        raise ValueError("TikTok video has no description and no creator comments")
+
+    parts: list[str] = []
+    if author_id:
+        parts.append(f"@{author_id}")
+    if desc:
+        parts.append(desc)
+    for c in creator_comments:
+        parts.append(f"[Creator comment]\n{c}")
+    return "\n\n".join(parts)
 
 
 def ingest(url: str) -> str:
