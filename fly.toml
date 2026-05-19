@@ -1,4 +1,4 @@
-app = "food-everything"
+app = "food-everything-grimm"
 primary_region = "iad"
 
 [build]
