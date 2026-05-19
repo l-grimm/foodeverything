@@ -1,0 +1,13 @@
+.git
+.venv
+__pycache__
+*.pyc
+.env
+.env.*
+.ruff_cache
+.pytest_cache
+.mypy_cache
+.DS_Store
+legacy/
+.claude/
+supabase/migrations/
