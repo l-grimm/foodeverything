@@ -13,13 +13,19 @@ import os
 from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel, HttpUrl
 
+from food_everything.ingest.instagram import ingest as ingest_instagram
 from food_everything.ingest.tiktok import ingest as ingest_tiktok
 
 app = FastAPI(title="Food Everything")
 
 
-class TikTokRequest(BaseModel):
+class WebhookRequest(BaseModel):
     url: HttpUrl
+
+
+# Backward-compat alias kept while the iOS Shortcut points at the
+# /webhook/tiktok URL. New work should target the per-platform endpoints.
+TikTokRequest = WebhookRequest
 
 
 def _check_auth(authorization: str | None) -> None:
@@ -43,11 +49,23 @@ def health() -> dict:
 
 @app.post("/webhook/tiktok")
 def webhook_tiktok(
-    req: TikTokRequest, authorization: str | None = Header(default=None)
+    req: WebhookRequest, authorization: str | None = Header(default=None)
 ) -> dict:
     _check_auth(authorization)
     try:
         recipe_id = ingest_tiktok(str(req.url))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"ingestion failed: {e}")
+    return {"status": "ok", "recipe_id": recipe_id}
+
+
+@app.post("/webhook/instagram")
+def webhook_instagram(
+    req: WebhookRequest, authorization: str | None = Header(default=None)
+) -> dict:
+    _check_auth(authorization)
+    try:
+        recipe_id = ingest_instagram(str(req.url))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"ingestion failed: {e}")
     return {"status": "ok", "recipe_id": recipe_id}
