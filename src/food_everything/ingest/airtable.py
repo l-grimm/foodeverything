@@ -25,7 +25,7 @@ from typing import Optional
 import requests
 
 from food_everything.config import supabase_client
-from food_everything.ingest.substack import extract_recipe
+from food_everything.ingest.substack import extract_recipe, fetch_article
 from food_everything.persist import write_recipe
 
 STORAGE_BUCKET = "recipe-images"
@@ -60,6 +60,29 @@ def fetch_records(base: str, table: str) -> list[dict]:
         if not offset:
             break
     return records
+
+
+def resolve_input(fields: dict) -> tuple[str, str]:
+    """Return (input_text, kind) for GPT extraction.
+
+    Prefers Airtable's own Ingredients/Instructions text when populated.
+    Falls back to fetching the Source URL through the JSON-LD-aware
+    substack.fetch_article pipeline — this is what salvages the Pocket
+    Import Failures, which are essentially URL bookmarks with empty text.
+
+    Raises ValueError when neither path yields content.
+    """
+    has_ingredients = bool((fields.get("Ingredients") or "").strip())
+    has_instructions = bool((fields.get("Instructions") or "").strip())
+    if has_ingredients or has_instructions:
+        return build_input_text(fields), "airtable_text"
+
+    source_url = fields.get("TikTok URL") or fields.get("Source")
+    if source_url:
+        # fetch_article handles JSON-LD detection and raises on too-thin input
+        return fetch_article(source_url), "url_fetch"
+
+    raise ValueError("record has neither ingredient text nor source URL")
 
 
 def build_input_text(fields: dict) -> str:
@@ -186,10 +209,46 @@ def record_import_outcome(
     ).execute()
 
 
-def run(base: str, table: str, limit: Optional[int] = None) -> None:
+def _records_for_retry_status(
+    sb, base: str, table: str, retry_status: str
+) -> set[str]:
+    """Find Airtable record ids matching `retry_status` in the audit table
+    (scoped to this base+table). Used to target re-runs at previously-failed
+    or previously-skipped records without re-processing the whole table."""
+    result = (
+        sb.table("airtable_imports")
+        .select("airtable_record_id")
+        .eq("airtable_base_id", base)
+        .eq("airtable_table", table)
+        .eq("status", retry_status)
+        .execute()
+    )
+    return {r["airtable_record_id"] for r in result.data}
+
+
+def run(
+    base: str,
+    table: str,
+    limit: Optional[int] = None,
+    retry_status: Optional[str] = None,
+) -> None:
     sb = supabase_client()
     records = fetch_records(base, table)
     print(f"Fetched {len(records)} records from {base}/{table}", file=sys.stderr)
+
+    if retry_status:
+        targets = _records_for_retry_status(sb, base, table, retry_status)
+        records = [r for r in records if r["id"] in targets]
+        print(
+            f"Retry mode: {len(records)} record(s) with prior status={retry_status!r}",
+            file=sys.stderr,
+        )
+        if records:
+            # Delete old audit rows so the upsert lands a fresh outcome
+            sb.table("airtable_imports").delete().eq(
+                "airtable_base_id", base
+            ).eq("airtable_table", table).eq("status", retry_status).execute()
+
     if limit:
         records = records[:limit]
         print(f"Processing first {limit}", file=sys.stderr)
@@ -221,7 +280,8 @@ def run(base: str, table: str, limit: Optional[int] = None) -> None:
                 skipped += 1
                 continue
 
-            input_text = build_input_text(fields)
+            input_text, input_kind = resolve_input(fields)
+            print(f"    input: {input_kind} ({len(input_text)} chars)", file=sys.stderr)
             recipe = extract_recipe(input_text)
             recipe_id = write_recipe(
                 recipe,
@@ -283,5 +343,14 @@ if __name__ == "__main__":
     parser.add_argument("--base", required=True, help="Airtable base id (e.g. appxrK2xOWKgQKW1I)")
     parser.add_argument("--table", required=True, help="Airtable table name")
     parser.add_argument("--limit", type=int, default=None, help="Process at most N records")
+    parser.add_argument(
+        "--retry-status",
+        choices=["failed", "skipped"],
+        default=None,
+        help=(
+            "Re-process only records with this prior status in airtable_imports. "
+            "Useful after fixing a bug or adding a new extraction path."
+        ),
+    )
     args = parser.parse_args()
-    run(args.base, args.table, args.limit)
+    run(args.base, args.table, args.limit, retry_status=args.retry_status)
