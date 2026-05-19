@@ -77,3 +77,15 @@ create table public.email_ingestions (
     email_received_at timestamptz,
     ingested_at       timestamptz default now()
 );
+
+-- Added by migration 0004. recipes.image_urls (text[]) is also added in 0004.
+create table public.airtable_imports (
+    id                 uuid primary key default gen_random_uuid(),
+    airtable_record_id text unique not null,
+    airtable_base_id   text not null,
+    airtable_table     text not null,
+    recipe_id          uuid references public.recipes(id) on delete set null,
+    status             text check (status in ('ingested', 'failed', 'skipped')),
+    error              text,
+    imported_at        timestamptz default now()
+);
