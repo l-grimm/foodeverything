@@ -82,7 +82,9 @@ class ExtractedIngredient(BaseModel):
     amount: Optional[str] = None
     unit: Optional[str] = None
     prep_note: Optional[str] = None
-    category: Optional[str] = None
+    category: Optional[
+        Literal["produce", "dairy", "protein", "grain", "pantry_staple", "other"]
+    ] = None
 
 
 class ExtractedRecipe(BaseModel):
