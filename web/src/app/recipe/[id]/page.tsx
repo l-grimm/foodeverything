@@ -126,7 +126,10 @@ export default async function RecipeDetail({
                 </div>
                 <ul className="space-y-1 text-base">
                   {grouped[category].map((ing) => {
-                    const showMarker = hasPantry && !ing.is_assumed_staple;
+                    // Staples (salt/oil/pepper/water) always show ✓ — they're
+                    // assumed present — but the count logic above still skips
+                    // them via is_assumed_staple. Dim only non-staple have-its
+                    // so missing items pop without making salt/water fade.
                     const dim = hasPantry && !ing.is_assumed_staple && ing.in_pantry;
                     return (
                       <li
@@ -136,21 +139,11 @@ export default async function RecipeDetail({
                         {hasPantry && (
                           <span
                             className={`w-4 shrink-0 select-none ${
-                              !showMarker
-                                ? "text-transparent"
-                                : ing.in_pantry
-                                ? "text-emerald-600"
-                                : "text-muted-foreground/40"
+                              ing.in_pantry ? "text-emerald-600" : "text-muted-foreground/40"
                             }`}
-                            aria-label={
-                              !showMarker
-                                ? undefined
-                                : ing.in_pantry
-                                ? "have it"
-                                : "missing"
-                            }
+                            aria-label={ing.in_pantry ? "have it" : "missing"}
                           >
-                            {showMarker ? (ing.in_pantry ? "✓" : "○") : "·"}
+                            {ing.in_pantry ? "✓" : "○"}
                           </span>
                         )}
                         <span className="font-medium tabular-nums">
