@@ -126,7 +126,7 @@ export type RecentPantryItem = {
 };
 
 export async function listRecentPantryItems(
-  limit = 30,
+  limit = 500,
 ): Promise<RecentPantryItem[]> {
   const { data } = await supabaseAdmin
     .from("pantry_items")
