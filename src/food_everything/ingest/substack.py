@@ -27,6 +27,18 @@ from food_everything.config import openai_client
 
 MIN_INPUT_LENGTH = 500  # below this with no JSON-LD, refuse (anti-hallucination)
 
+# Bare "Mozilla/5.0" tripped 429s on food52 (and likely other CDN-fronted
+# blogs). Send a full desktop Chrome fingerprint so we look like a browser.
+BROWSER_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/120.0.0.0 Safari/537.36"
+    ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+}
+
 SYSTEM_PROMPT = """You extract structured recipes from article text.
 
 The article may be primarily storytelling with a recipe embedded, or it may be a pure recipe.
@@ -162,7 +174,7 @@ def fetch_article(url: str) -> str:
     neither yields enough content (anti-hallucination guard — GPT will
     confabulate recipes from near-empty input).
     """
-    resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=15)
+    resp = requests.get(url, headers=BROWSER_HEADERS, timeout=15)
     resp.raise_for_status()
     soup = BeautifulSoup(resp.text, "html.parser")
 
