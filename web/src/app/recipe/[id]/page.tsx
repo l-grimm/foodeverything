@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { getRecipe } from "@/lib/queries";
-import type { RecipeIngredient } from "@/lib/types";
+import type { IngredientWithPantry } from "@/lib/types";
+import { CopyMissingButton } from "./copy-missing-button";
 
 export default async function RecipeDetail({
   params,
@@ -11,10 +12,10 @@ export default async function RecipeDetail({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const { recipe, ingredients } = await getRecipe(id);
+  const { recipe, ingredients, hasPantry } = await getRecipe(id);
   if (!recipe) notFound();
 
-  const grouped = ingredients.reduce<Record<string, RecipeIngredient[]>>(
+  const grouped = ingredients.reduce<Record<string, IngredientWithPantry[]>>(
     (acc, ing) => {
       const key = ing.category ?? "other";
       (acc[key] = acc[key] ?? []).push(ing);
@@ -26,6 +27,9 @@ export default async function RecipeDetail({
   const categoryOrder = [
     "produce", "protein", "dairy", "grain", "pantry_staple", "other",
   ];
+
+  const missing = ingredients.filter((i) => !i.in_pantry);
+  const haveCount = ingredients.length - missing.length;
 
   return (
     <article className="space-y-6">
@@ -96,7 +100,19 @@ export default async function RecipeDetail({
       <Separator />
 
       <section className="space-y-3">
-        <h2 className="text-xl font-semibold">Ingredients</h2>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-xl font-semibold">Ingredients</h2>
+          {hasPantry && ingredients.length > 0 && (
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-muted-foreground tabular-nums">
+                You have {haveCount} of {ingredients.length}
+              </span>
+              {missing.length > 0 && (
+                <CopyMissingButton missing={missing.map((m) => m.name)} />
+              )}
+            </div>
+          )}
+        </div>
         {ingredients.length === 0 ? (
           <p className="text-muted-foreground text-sm">No ingredients recorded.</p>
         ) : (
@@ -108,7 +124,22 @@ export default async function RecipeDetail({
                 </div>
                 <ul className="space-y-1 text-base">
                   {grouped[category].map((ing) => (
-                    <li key={ing.id} className="flex gap-2">
+                    <li
+                      key={ing.id}
+                      className={`flex gap-2 ${
+                        hasPantry && ing.in_pantry ? "text-muted-foreground" : ""
+                      }`}
+                    >
+                      {hasPantry && (
+                        <span
+                          className={`w-4 shrink-0 select-none ${
+                            ing.in_pantry ? "text-emerald-600" : "text-muted-foreground/40"
+                          }`}
+                          aria-label={ing.in_pantry ? "have it" : "missing"}
+                        >
+                          {ing.in_pantry ? "✓" : "○"}
+                        </span>
+                      )}
                       <span className="font-medium tabular-nums">
                         {[ing.amount, ing.unit].filter(Boolean).join(" ")}
                       </span>

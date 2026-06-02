@@ -54,3 +54,14 @@ export type RecipeIngredient = {
   prep_note: string | null;
   category: IngredientCategory | null;
 };
+
+// Recipe joined with the output of recipe_coverage() RPC. coverage is in [0, 1].
+export type RecipeWithCoverage = Recipe & {
+  matched_count: number;
+  total_count: number;
+  coverage: number;
+};
+
+export type IngredientWithPantry = RecipeIngredient & {
+  in_pantry: boolean;
+};

@@ -37,7 +37,7 @@ export default async function Home({
     pageSize: PAGE_SIZE,
   };
 
-  const [{ recipes, total }, facets] = await Promise.all([
+  const [{ recipes, total, hasPantry }, facets] = await Promise.all([
     listRecipes(filters),
     getFilterFacets(),
   ]);
@@ -87,6 +87,9 @@ export default async function Home({
       <div className="text-sm text-muted-foreground">
         {total} recipe{total === 1 ? "" : "s"}
         {filters.q ? ` matching "${filters.q}"` : ""}
+        {hasPantry && (
+          <span className="ml-2">• sorted by pantry coverage</span>
+        )}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -94,7 +97,12 @@ export default async function Home({
           <Link key={r.id} href={`/recipe/${r.id}`} className="block group">
             <Card className="h-full transition group-hover:shadow-md">
               <CardHeader className="pb-2">
-                <CardTitle className="text-base leading-snug">{r.title}</CardTitle>
+                <div className="flex items-start justify-between gap-2">
+                  <CardTitle className="text-base leading-snug">{r.title}</CardTitle>
+                  {hasPantry && r.total_count > 0 && (
+                    <CoverageBadge matched={r.matched_count} total={r.total_count} />
+                  )}
+                </div>
                 {r.author && (
                   <div className="text-sm text-muted-foreground">{r.author}</div>
                 )}
@@ -195,4 +203,21 @@ function Pagination({
 
 function cap(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1).replace(/_/g, " ");
+}
+
+function CoverageBadge({ matched, total }: { matched: number; total: number }) {
+  const pct = total > 0 ? matched / total : 0;
+  // Green when you have most of the recipe; muted when you barely have any.
+  const tone =
+    pct >= 0.8 ? "bg-emerald-100 text-emerald-900 border-emerald-300"
+    : pct >= 0.5 ? "bg-amber-50 text-amber-900 border-amber-200"
+    : "bg-muted text-muted-foreground border-border";
+  return (
+    <span
+      className={`shrink-0 rounded-full border px-2 py-0.5 text-xs tabular-nums ${tone}`}
+      title={`${matched} of ${total} ingredients in pantry`}
+    >
+      {matched}/{total}
+    </span>
+  );
 }
