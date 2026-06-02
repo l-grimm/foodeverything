@@ -209,6 +209,7 @@ function cap(s: string): string {
 }
 
 function CoverageBadge({ matched, total }: { matched: number; total: number }) {
+  const missing = total - matched;
   const pct = total > 0 ? matched / total : 0;
   // Green when you have most of the recipe; muted when you barely have any.
   const tone =
@@ -218,9 +219,9 @@ function CoverageBadge({ matched, total }: { matched: number; total: number }) {
   return (
     <span
       className={`shrink-0 rounded-full border px-2 py-0.5 text-xs tabular-nums ${tone}`}
-      title={`${matched} of ${total} ingredients in pantry`}
+      title={`${missing} of ${total} ingredient${total === 1 ? "" : "s"} not in pantry`}
     >
-      {matched}/{total}
+      {missing === 0 ? "ready" : `${missing} missing`}
     </span>
   );
 }
