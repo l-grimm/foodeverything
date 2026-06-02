@@ -30,6 +30,7 @@ export default async function Home({
     course: sp.course,
     season: sp.season,
     holiday: sp.holiday,
+    cuisine: sp.cuisine,
     platform: sp.platform,
     needsReview: sp.needsReview === "1",
     page,
@@ -57,6 +58,7 @@ export default async function Home({
         {filters.course && <input type="hidden" name="course" value={filters.course} />}
         {filters.season && <input type="hidden" name="season" value={filters.season} />}
         {filters.holiday && <input type="hidden" name="holiday" value={filters.holiday} />}
+        {filters.cuisine && <input type="hidden" name="cuisine" value={filters.cuisine} />}
         {filters.platform && <input type="hidden" name="platform" value={filters.platform} />}
         {filters.needsReview && <input type="hidden" name="needsReview" value="1" />}
       </form>
@@ -73,6 +75,9 @@ export default async function Home({
         ))}
         {facets.holidays.map((h) => (
           <FilterChip key={`h-${h}`} current={sp} k="holiday" v={h} label={h} />
+        ))}
+        {facets.cuisines.map((c) => (
+          <FilterChip key={`cu-${c}`} current={sp} k="cuisine" v={c} label={c} />
         ))}
         {facets.platforms.map((p) => (
           <FilterChip key={`p-${p}`} current={sp} k="platform" v={p} label={cap(p)} />

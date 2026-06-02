@@ -14,6 +14,7 @@ from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel, HttpUrl
 
 from food_everything.ingest.instagram import ingest as ingest_instagram
+from food_everything.ingest.substack import ingest as ingest_url
 from food_everything.ingest.tiktok import ingest as ingest_tiktok
 
 app = FastAPI(title="Food Everything")
@@ -66,6 +67,23 @@ def webhook_instagram(
     _check_auth(authorization)
     try:
         recipe_id = ingest_instagram(str(req.url))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"ingestion failed: {e}")
+    return {"status": "ok", "recipe_id": recipe_id}
+
+
+@app.post("/webhook/url")
+def webhook_url(
+    req: WebhookRequest, authorization: str | None = Header(default=None)
+) -> dict:
+    """Generic recipe URL: Substack posts, food blogs, NYT Cooking, etc.
+
+    Uses the substack ingester (JSON-LD preferred, article-text fallback).
+    Hostname-derived source_platform: substack vs url.
+    """
+    _check_auth(authorization)
+    try:
+        recipe_id = ingest_url(str(req.url))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"ingestion failed: {e}")
     return {"status": "ok", "recipe_id": recipe_id}

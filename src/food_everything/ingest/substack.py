@@ -6,6 +6,10 @@ scraping HTML article text). Falls back to article-text scraping when no
 JSON-LD is present. Refuses extraction (raises) when both yield too little
 content, to avoid GPT hallucinating a recipe from a near-empty input.
 
+Despite the module name, this is the generic recipe-URL ingester — works
+for Substack posts, food blogs, NYT Cooking, Bon Appétit, etc. Hostname
+determines source_platform (substack vs url) for filterability later.
+
 Usage:
     uv run python -m food_everything.ingest.substack <url>
 """
@@ -13,6 +17,7 @@ Usage:
 import json
 import sys
 from typing import Literal, Optional
+from urllib.parse import urlparse
 
 import requests
 from bs4 import BeautifulSoup
@@ -192,15 +197,18 @@ def extract_recipe(article_text: str) -> ExtractedRecipe:
     return message.parsed
 
 
-def write_to_supabase(recipe: ExtractedRecipe, url: str, raw_text: str) -> str:
+def _infer_source_platform(url: str) -> str:
+    host = (urlparse(url).hostname or "").lower()
+    if host == "substack.com" or host.endswith(".substack.com"):
+        return "substack"
+    return "url"
+
+
+def ingest(url: str, source_platform: Optional[str] = None) -> str:
     from food_everything.persist import write_recipe
 
-    return write_recipe(
-        recipe, source_url=url, source_platform="substack", raw_text=raw_text
-    )
-
-
-def ingest(url: str) -> str:
+    if source_platform is None:
+        source_platform = _infer_source_platform(url)
     print(f"Fetching {url}", file=sys.stderr)
     article = fetch_article(url)
     print(f"Got {len(article)} chars of article text", file=sys.stderr)
@@ -212,7 +220,9 @@ def ingest(url: str) -> str:
         f"{recipe.extraction_confidence} confidence)",
         file=sys.stderr,
     )
-    recipe_id = write_to_supabase(recipe, url, article)
+    recipe_id = write_recipe(
+        recipe, source_url=url, source_platform=source_platform, raw_text=article
+    )
     print(f"Wrote recipe {recipe_id}", file=sys.stderr)
     return recipe_id
 

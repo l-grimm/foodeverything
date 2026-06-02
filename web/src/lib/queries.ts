@@ -9,6 +9,7 @@ export type RecipeFilters = {
   course?: string;
   season?: string;
   holiday?: string;
+  cuisine?: string;
   platform?: string;
   needsReview?: boolean;
   page?: number;
@@ -41,6 +42,7 @@ export async function listRecipes(filters: RecipeFilters): Promise<RecipeListRes
   if (filters.course) query = query.eq("course", filters.course);
   if (filters.season) query = query.eq("season", filters.season);
   if (filters.holiday) query = query.eq("holiday", filters.holiday);
+  if (filters.cuisine) query = query.eq("cuisine", filters.cuisine);
   if (filters.platform) query = query.eq("source_platform", filters.platform);
   if (filters.needsReview) query = query.eq("extraction_confidence", "needs_review");
 
@@ -73,25 +75,29 @@ export async function getFilterFacets(): Promise<{
   courses: string[];
   seasons: string[];
   holidays: string[];
+  cuisines: string[];
   platforms: string[];
 }> {
   const { data } = await supabaseAdmin
     .from("recipes")
-    .select("course,season,holiday,source_platform");
+    .select("course,season,holiday,cuisine,source_platform");
   const courses = new Set<string>();
   const seasons = new Set<string>();
   const holidays = new Set<string>();
+  const cuisines = new Set<string>();
   const platforms = new Set<string>();
   for (const r of data ?? []) {
     if (r.course) courses.add(r.course);
     if (r.season) seasons.add(r.season);
     if (r.holiday) holidays.add(r.holiday);
+    if (r.cuisine) cuisines.add(r.cuisine);
     if (r.source_platform) platforms.add(r.source_platform);
   }
   return {
     courses: [...courses].sort(),
     seasons: [...seasons].sort(),
     holidays: [...holidays].sort(),
+    cuisines: [...cuisines].sort(),
     platforms: [...platforms].sort(),
   };
 }
