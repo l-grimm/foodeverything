@@ -5,10 +5,26 @@ ExtractedRecipe and write the same recipes + recipe_ingredients rows;
 this module centralizes that to avoid drift across ingesters.
 """
 
-from typing import Optional
+from typing import Any, Optional
 
 from food_everything.config import supabase_client
 from food_everything.ingest.substack import ExtractedRecipe
+
+
+def _strip_nulls(obj: Any) -> Any:
+    """Remove characters Postgres text columns refuse — namely the NUL
+    character (and the literal "\\u0000" text it can serialize to when JSON
+    round-trips through PostgREST). NYT Cooking JSON-LD blobs occasionally
+    contain these; without sanitization the insert fails with SQLSTATE 22P05.
+    Recurses through dicts and lists so every nested string is cleaned.
+    """
+    if isinstance(obj, str):
+        return obj.replace("\x00", "").replace("\\u0000", "")
+    if isinstance(obj, list):
+        return [_strip_nulls(x) for x in obj]
+    if isinstance(obj, dict):
+        return {k: _strip_nulls(v) for k, v in obj.items()}
+    return obj
 
 
 def write_recipe(
@@ -53,23 +69,25 @@ def write_recipe(
         # processing_status omitted: DB default 'approved' applies. User opted
         # out of the human-review workflow given expected ingestion volume.
     }
-    result = sb.table("recipes").insert(recipe_row).execute()
+    result = sb.table("recipes").insert(_strip_nulls(recipe_row)).execute()
     recipe_id = result.data[0]["id"]
 
     if recipe.ingredients:
         sb.table("recipe_ingredients").insert(
-            [
-                {
-                    "recipe_id": recipe_id,
-                    "name": ing.name,
-                    "name_raw": ing.name_raw,
-                    "amount": ing.amount,
-                    "unit": ing.unit,
-                    "prep_note": ing.prep_note,
-                    "category": ing.category,
-                }
-                for ing in recipe.ingredients
-            ]
+            _strip_nulls(
+                [
+                    {
+                        "recipe_id": recipe_id,
+                        "name": ing.name,
+                        "name_raw": ing.name_raw,
+                        "amount": ing.amount,
+                        "unit": ing.unit,
+                        "prep_note": ing.prep_note,
+                        "category": ing.category,
+                    }
+                    for ing in recipe.ingredients
+                ]
+            )
         ).execute()
 
     return recipe_id
