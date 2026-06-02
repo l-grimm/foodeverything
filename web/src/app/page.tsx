@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { listRecipes, getFilterFacets } from "@/lib/queries";
+import { RecentPantryStrip } from "./_pantry-widget/strip";
 
 const PAGE_SIZE = 24;
 
@@ -46,6 +47,8 @@ export default async function Home({
 
   return (
     <div className="space-y-6">
+      <RecentPantryStrip />
+
       <form action="/" className="flex gap-2">
         <Input
           name="q"

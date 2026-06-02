@@ -119,6 +119,24 @@ export async function listRecipes(filters: RecipeFilters): Promise<RecipeListRes
   return { recipes: paginated, total: recipesRes.count ?? 0, hasPantry };
 }
 
+export type RecentPantryItem = {
+  id: string;
+  name: string;
+  added_at: string | null;
+};
+
+export async function listRecentPantryItems(
+  limit = 30,
+): Promise<RecentPantryItem[]> {
+  const { data } = await supabaseAdmin
+    .from("pantry_items")
+    .select("id, name, added_at")
+    .is("finished_at", null)
+    .order("added_at", { ascending: false })
+    .limit(limit);
+  return (data ?? []) as RecentPantryItem[];
+}
+
 export async function getRecipe(id: string): Promise<{
   recipe: Recipe | null;
   ingredients: IngredientWithPantry[];
