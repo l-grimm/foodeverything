@@ -10,10 +10,11 @@ WEBHOOK_TOKEN (shared secret matching the iOS Shortcut's Authorization header).
 
 import os
 
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, File, Header, HTTPException, UploadFile
 from pydantic import BaseModel, HttpUrl
 
 from food_everything.ingest.instagram import ingest as ingest_instagram
+from food_everything.ingest.pantry import ingest as ingest_pantry
 from food_everything.ingest.substack import ingest as ingest_url
 from food_everything.ingest.tiktok import ingest as ingest_tiktok
 
@@ -87,3 +88,23 @@ def webhook_url(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"ingestion failed: {e}")
     return {"status": "ok", "recipe_id": recipe_id}
+
+
+@app.post("/webhook/pantry")
+async def webhook_pantry(
+    photo: UploadFile = File(...),
+    authorization: str | None = Header(default=None),
+) -> dict:
+    """Grocery photo -> pantry_items rows. Multipart upload (field name: photo).
+
+    iOS Shortcut path: take photo -> POST multipart to this endpoint with
+    bearer token -> receive identified items list for confirmation toast.
+    """
+    _check_auth(authorization)
+    image_bytes = await photo.read()
+    mime = photo.content_type or "image/jpeg"
+    try:
+        result = ingest_pantry(image_bytes, mime)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"ingestion failed: {e}")
+    return {"status": "ok", **result}
