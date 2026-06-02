@@ -107,4 +107,9 @@ async def webhook_pantry(
         result = ingest_pantry(image_bytes, mime)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"ingestion failed: {e}")
-    return {"status": "ok", **result}
+    names = [it["name"] for it in result["items"]]
+    if names:
+        summary = f"Added {len(names)} to pantry:\n" + "\n".join(f"• {n}" for n in names)
+    else:
+        summary = "No groceries recognized — try a clearer or closer photo."
+    return {"status": "ok", "summary": summary, **result}
