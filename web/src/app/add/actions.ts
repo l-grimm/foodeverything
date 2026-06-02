@@ -17,8 +17,10 @@ export async function addUrl(
   const url = String(formData.get("url") || "").trim();
   if (!url) return { error: "Paste a recipe URL." };
 
-  const base = process.env.WEBHOOK_BASE_URL!;
-  const token = process.env.WEBHOOK_TOKEN!;
+  // Trim defensively — a stray trailing space in a Vercel env var produces
+  // "Failed to parse URL" from fetch, which is opaque to debug from the UI.
+  const base = process.env.WEBHOOK_BASE_URL!.trim();
+  const token = process.env.WEBHOOK_TOKEN!.trim();
   const endpoint = pickEndpoint(base, url);
 
   let resp: Response;
