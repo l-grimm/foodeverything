@@ -27,9 +27,10 @@ export type RecipeListResult = {
 };
 
 // Mirror of the assumed-staple list in the recipe_coverage() SQL function
-// (migration 0006). Items here are treated as always-present even with an
-// empty pantry, so recipes don't show salt/oil as "missing".
-const ALWAYS_PRESENT_INGREDIENTS = new Set([
+// (migrations 0006 + 0007). Items here are EXCLUDED from coverage counts
+// entirely — not counted as matched, not counted in the total, not shown
+// as missing. They render as plain rows so the recipe is still readable.
+const ASSUMED_STAPLES = new Set([
   "salt",
   "pepper",
   "black pepper",
@@ -134,17 +135,24 @@ export async function getRecipe(id: string): Promise<{
   ]);
 
   const pantryItems = (pantryRes.data ?? []) as { name: string }[];
-  const haveSet = new Set<string>([
-    ...ALWAYS_PRESENT_INGREDIENTS,
-    ...pantryItems.map((i) => normalizeIngredientName(i.name)),
-  ]);
+  const pantrySet = new Set<string>(
+    pantryItems.map((i) => normalizeIngredientName(i.name)),
+  );
 
   const enrichedIngredients: IngredientWithPantry[] = (
     (ingredientsRes.data ?? []) as IngredientWithPantry[]
-  ).map((ing) => ({
-    ...ing,
-    in_pantry: haveSet.has(normalizeIngredientName(ing.name)),
-  }));
+  ).map((ing) => {
+    const norm = normalizeIngredientName(ing.name);
+    const isStaple = ASSUMED_STAPLES.has(norm);
+    return {
+      ...ing,
+      is_assumed_staple: isStaple,
+      // Staples are neither "have" nor "missing" — they're outside the count.
+      // We mark in_pantry=true defensively so any caller that ignores the
+      // staple flag still treats them as not-missing.
+      in_pantry: isStaple || pantrySet.has(norm),
+    };
+  });
 
   return {
     recipe: recipeRes.data as Recipe | null,

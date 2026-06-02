@@ -28,8 +28,10 @@ export default async function RecipeDetail({
     "produce", "protein", "dairy", "grain", "pantry_staple", "other",
   ];
 
-  const missing = ingredients.filter((i) => !i.in_pantry);
-  const haveCount = ingredients.length - missing.length;
+  // Staples are excluded from counts and from the missing list entirely.
+  const counted = ingredients.filter((i) => !i.is_assumed_staple);
+  const missing = counted.filter((i) => !i.in_pantry);
+  const haveCount = counted.length - missing.length;
 
   return (
     <article className="space-y-6">
@@ -102,10 +104,10 @@ export default async function RecipeDetail({
       <section className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-xl font-semibold">Ingredients</h2>
-          {hasPantry && ingredients.length > 0 && (
+          {hasPantry && counted.length > 0 && (
             <div className="flex items-center gap-3">
               <span className="text-sm text-muted-foreground tabular-nums">
-                You have {haveCount} of {ingredients.length}
+                You have {haveCount} of {counted.length}
               </span>
               {missing.length > 0 && (
                 <CopyMissingButton missing={missing.map((m) => m.name)} />
@@ -123,32 +125,44 @@ export default async function RecipeDetail({
                   {category.replace(/_/g, " ")}
                 </div>
                 <ul className="space-y-1 text-base">
-                  {grouped[category].map((ing) => (
-                    <li
-                      key={ing.id}
-                      className={`flex gap-2 ${
-                        hasPantry && ing.in_pantry ? "text-muted-foreground" : ""
-                      }`}
-                    >
-                      {hasPantry && (
-                        <span
-                          className={`w-4 shrink-0 select-none ${
-                            ing.in_pantry ? "text-emerald-600" : "text-muted-foreground/40"
-                          }`}
-                          aria-label={ing.in_pantry ? "have it" : "missing"}
-                        >
-                          {ing.in_pantry ? "✓" : "○"}
+                  {grouped[category].map((ing) => {
+                    const showMarker = hasPantry && !ing.is_assumed_staple;
+                    const dim = hasPantry && !ing.is_assumed_staple && ing.in_pantry;
+                    return (
+                      <li
+                        key={ing.id}
+                        className={`flex gap-2 ${dim ? "text-muted-foreground" : ""}`}
+                      >
+                        {hasPantry && (
+                          <span
+                            className={`w-4 shrink-0 select-none ${
+                              !showMarker
+                                ? "text-transparent"
+                                : ing.in_pantry
+                                ? "text-emerald-600"
+                                : "text-muted-foreground/40"
+                            }`}
+                            aria-label={
+                              !showMarker
+                                ? undefined
+                                : ing.in_pantry
+                                ? "have it"
+                                : "missing"
+                            }
+                          >
+                            {showMarker ? (ing.in_pantry ? "✓" : "○") : "·"}
+                          </span>
+                        )}
+                        <span className="font-medium tabular-nums">
+                          {[ing.amount, ing.unit].filter(Boolean).join(" ")}
                         </span>
-                      )}
-                      <span className="font-medium tabular-nums">
-                        {[ing.amount, ing.unit].filter(Boolean).join(" ")}
-                      </span>
-                      <span>{ing.name}</span>
-                      {ing.prep_note && (
-                        <span className="text-muted-foreground">({ing.prep_note})</span>
-                      )}
-                    </li>
-                  ))}
+                        <span>{ing.name}</span>
+                        {ing.prep_note && (
+                          <span className="text-muted-foreground">({ing.prep_note})</span>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             ))}

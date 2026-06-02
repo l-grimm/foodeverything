@@ -64,4 +64,7 @@ export type RecipeWithCoverage = Recipe & {
 
 export type IngredientWithPantry = RecipeIngredient & {
   in_pantry: boolean;
+  // True for salt/pepper/oil/water variants — these don't count toward
+  // matched/total/missing and render without a have/missing marker.
+  is_assumed_staple: boolean;
 };
