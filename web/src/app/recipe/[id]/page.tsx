@@ -126,11 +126,11 @@ export default async function RecipeDetail({
                 </div>
                 <ul className="space-y-1 text-base">
                   {grouped[category].map((ing) => {
-                    // Staples (salt/oil/pepper/water) always show ✓ — they're
-                    // assumed present — but the count logic above still skips
-                    // them via is_assumed_staple. Dim only non-staple have-its
-                    // so missing items pop without making salt/water fade.
-                    const dim = hasPantry && !ing.is_assumed_staple && ing.in_pantry;
+                    // Staples (salt/oil/pepper/water) always show ✓ and dim
+                    // like every other have-it row — visual consistency.
+                    // The count logic above still skips them via
+                    // is_assumed_staple.
+                    const dim = hasPantry && ing.in_pantry;
                     return (
                       <li
                         key={ing.id}

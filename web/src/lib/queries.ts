@@ -71,6 +71,16 @@ const ALIASES: Record<string, string> = {
   "flaky salt": "salt",
   "freshly ground black pepper": "black pepper",
   "ground black pepper": "black pepper",
+  "miso paste": "miso",
+  "white miso": "miso",
+  "red miso": "miso",
+  "yellow miso": "miso",
+  "brown miso": "miso",
+  "shiro miso": "miso",
+  "aka miso": "miso",
+  "toasted sesame oil": "sesame oil",
+  "roasted sesame oil": "sesame oil",
+  "dark sesame oil": "sesame oil",
 };
 
 function normalizeIngredientName(raw: string): string {
