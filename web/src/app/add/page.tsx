@@ -16,9 +16,8 @@ export default function AddPage() {
         ← All recipes
       </Link>
       <header className="space-y-3 border-t border-border pt-4">
-        <div className="label-mono">Add a recipe</div>
         <h1 className="font-display uppercase text-3xl sm:text-4xl leading-[0.95] text-foreground">
-          Paste a URL
+          Add a recipe
         </h1>
         <p className="text-muted-foreground text-sm">
           TikTok, Instagram, Substack, NYT Cooking, or any food blog.

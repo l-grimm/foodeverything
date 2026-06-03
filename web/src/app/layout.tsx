@@ -4,6 +4,7 @@ import localFont from "next/font/local";
 import { Bowlby_One, Geist_Mono } from "next/font/google";
 import { Suspense } from "react";
 import { SearchBar } from "./_search/search-bar";
+import { HeaderAddButton } from "./_header/add-button";
 import "./globals.css";
 
 // General Sans (Indian Type Foundry, free for web via Fontshare license).
@@ -60,12 +61,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 Food Everything
               </span>
             </Link>
-            <Link
-              href="/add"
-              className="rounded-full bg-primary text-primary-foreground px-3.5 py-1.5 font-mono text-xs uppercase tracking-wider hover:opacity-90"
-            >
-              + Add
-            </Link>
+            <HeaderAddButton />
           </div>
           <div className="mx-auto max-w-5xl px-4 pb-3">
             <Suspense fallback={null}>
