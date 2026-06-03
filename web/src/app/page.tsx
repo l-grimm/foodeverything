@@ -1,4 +1,3 @@
-import { Input } from "@/components/ui/input";
 import { listRecipesForSection, getFilterFacets } from "@/lib/queries";
 import { FilterBar } from "./_filter-bar/filter-bar";
 import { ActiveFilters } from "./_filter-bar/active-filters";
@@ -54,36 +53,6 @@ export default async function Home({
 
   return (
     <div className="space-y-8">
-      {/* Search — sticky beneath the global header */}
-      <div className="sticky top-[3.5rem] z-30 -mx-4 bg-background/95 backdrop-blur px-4 py-2 border-b border-border">
-        <form action="/" className="flex gap-2">
-          <Input
-            name="q"
-            defaultValue={filters.q ?? ""}
-            placeholder="Search recipes…"
-            className="text-base"
-          />
-          {filters.course.length > 0 && (
-            <input type="hidden" name="course" value={filters.course.join(",")} />
-          )}
-          {filters.season.length > 0 && (
-            <input type="hidden" name="season" value={filters.season.join(",")} />
-          )}
-          {filters.cuisine.length > 0 && (
-            <input type="hidden" name="cuisine" value={filters.cuisine.join(",")} />
-          )}
-          {filters.holiday.length > 0 && (
-            <input type="hidden" name="holiday" value={filters.holiday.join(",")} />
-          )}
-          {filters.tags.length > 0 && (
-            <input type="hidden" name="tags" value={filters.tags.join(",")} />
-          )}
-          {filters.author.length > 0 && (
-            <input type="hidden" name="author" value={filters.author.join(",")} />
-          )}
-        </form>
-      </div>
-
       <FilterBar
         facets={{
           cuisines: facets.cuisines,
@@ -138,8 +107,9 @@ export default async function Home({
   );
 }
 
-// Roux-style section header: top horizontal rule + mono micro-label.
-// Body text label is what the user reads; mono caps echo the brand book.
+// Section header: horizontal rule + bold mono caps in Spinach Green.
+// Section-scale (text-sm) — distinct from the smaller label-mono used
+// elsewhere for metadata micro-labels.
 function SectionFrame({
   label,
   subtitle,
@@ -152,7 +122,9 @@ function SectionFrame({
   return (
     <section className="space-y-3">
       <header className="border-t border-border pt-3 space-y-1">
-        <div className="label-mono">{label}</div>
+        <div className="font-mono uppercase tracking-wider text-sm font-bold text-secondary">
+          {label}
+        </div>
         {subtitle && (
           <div className="text-sm text-muted-foreground">{subtitle}</div>
         )}

@@ -109,7 +109,9 @@ export default async function RecipeDetail({
       <section className="space-y-4">
         <header className="border-t border-border pt-3 flex flex-wrap items-end justify-between gap-3">
           <div>
-            <div className="label-mono mb-1">Ingredients</div>
+            <div className="font-mono uppercase tracking-wider text-sm font-bold text-secondary mb-1">
+              Ingredients
+            </div>
             {hasPantry && counted.length > 0 && (
               <div className="text-sm text-muted-foreground tabular-nums">
                 You have {haveCount} of {counted.length}
@@ -176,7 +178,9 @@ export default async function RecipeDetail({
       {recipe.instructions && recipe.instructions.length > 0 && (
         <section className="space-y-4">
           <header className="border-t border-border pt-3">
-            <div className="label-mono">Instructions</div>
+            <div className="font-mono uppercase tracking-wider text-sm font-bold text-secondary">
+              Instructions
+            </div>
           </header>
           <ol className="list-decimal list-outside ml-5 space-y-3 text-base leading-relaxed marker:text-muted-foreground marker:font-mono">
             {recipe.instructions.map((step, i) => (
@@ -189,7 +193,9 @@ export default async function RecipeDetail({
       {recipe.my_notes && (
         <section className="space-y-3">
           <header className="border-t border-border pt-3">
-            <div className="label-mono">My notes</div>
+            <div className="font-mono uppercase tracking-wider text-sm font-bold text-secondary">
+              My notes
+            </div>
           </header>
           <div className="rounded-md border border-border bg-card p-4 whitespace-pre-wrap text-sm">
             {recipe.my_notes}

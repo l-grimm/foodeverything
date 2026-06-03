@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import localFont from "next/font/local";
 import { Bowlby_One, Geist_Mono } from "next/font/google";
+import { Suspense } from "react";
+import { SearchBar } from "./_search/search-bar";
 import "./globals.css";
 
 // General Sans (Indian Type Foundry, free for web via Fontshare license).
@@ -46,7 +48,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       className={`${generalSans.variable} ${bowlbyOne.variable} ${geistMono.variable} antialiased`}
     >
       <body className="bg-background text-foreground min-h-screen font-sans">
-        <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+        {/* Solid bg (no transparency / backdrop-blur) so the sticky region
+            doesn't visually wobble during iOS rubber-band scroll. */}
+        <header className="sticky top-0 z-40 border-b border-border bg-background">
           <div className="mx-auto max-w-5xl px-4 py-3 flex items-center justify-between gap-3">
             <Link
               href="/"
@@ -62,6 +66,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             >
               + Add
             </Link>
+          </div>
+          <div className="mx-auto max-w-5xl px-4 pb-3">
+            <Suspense fallback={null}>
+              <SearchBar />
+            </Suspense>
           </div>
         </header>
         <main className="mx-auto max-w-5xl px-4 py-6">{children}</main>
