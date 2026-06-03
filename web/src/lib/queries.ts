@@ -23,10 +23,17 @@ export type RecipeFilters = {
   cuisine?: string[];
   platform?: string[];
   tags?: string[];
+  // Author filter accepts real author names plus two special tokens:
+  //   "Family"    — matches is_family_recipe = true
+  //   "No author" — matches author is null and not flagged family
+  author?: string[];
   needsReview?: boolean;
   page?: number;
   pageSize?: number;
 };
+
+const AUTHOR_FAMILY = "Family";
+const AUTHOR_NONE = "No author";
 
 export type RecipeListResult = {
   recipes: RecipeWithCoverage[];
@@ -177,7 +184,7 @@ export async function listRecipesForSection(
     });
   }
 
-  const enriched: RecipeWithCoverage[] = ((recipesRes.data ?? []) as Recipe[]).map((r) => {
+  let enriched: RecipeWithCoverage[] = ((recipesRes.data ?? []) as Recipe[]).map((r) => {
     const c = coverageMap.get(r.id);
     return {
       ...r,
@@ -186,6 +193,20 @@ export async function listRecipesForSection(
       coverage: c?.coverage ?? 0,
     };
   });
+
+  // Author filter applied in JS because the "Family" and "No author" tokens
+  // don't map cleanly to a single SQL column (Family = is_family_recipe,
+  // None = author IS NULL). With our 5000-row ceiling this is fast.
+  if (filters.author?.length) {
+    const wants = filters.author;
+    enriched = enriched.filter((r) =>
+      wants.some((a) => {
+        if (a === AUTHOR_FAMILY) return r.is_family_recipe === true;
+        if (a === AUTHOR_NONE) return !r.author && !r.is_family_recipe;
+        return r.author === a;
+      }),
+    );
+  }
 
   // Section-specific sort.
   if (section === "cookNow") {
@@ -290,10 +311,11 @@ export async function getFilterFacets(): Promise<{
   cuisines: string[];
   platforms: string[];
   tags: string[];
+  authors: string[];
 }> {
   const { data } = await supabaseAdmin
     .from("recipes")
-    .select("course,season,holiday,cuisine,source_platform,tags")
+    .select("course,season,holiday,cuisine,source_platform,tags,author,is_family_recipe")
     .limit(5000);
   const courses = new Set<string>();
   const seasons = new Set<string>();
@@ -301,6 +323,9 @@ export async function getFilterFacets(): Promise<{
   const cuisines = new Set<string>();
   const platforms = new Set<string>();
   const tags = new Set<string>();
+  const authors = new Set<string>();
+  let hasFamily = false;
+  let hasNone = false;
   for (const r of (data ?? []) as {
     course: string | null;
     season: string | null;
@@ -308,6 +333,8 @@ export async function getFilterFacets(): Promise<{
     cuisine: string | null;
     source_platform: string | null;
     tags: string[] | null;
+    author: string | null;
+    is_family_recipe: boolean | null;
   }[]) {
     if (r.course) courses.add(r.course);
     if (r.season) seasons.add(r.season);
@@ -315,7 +342,16 @@ export async function getFilterFacets(): Promise<{
     if (r.cuisine) cuisines.add(r.cuisine);
     if (r.source_platform) platforms.add(r.source_platform);
     if (r.tags) for (const t of r.tags) if (t) tags.add(t);
+    if (r.author) authors.add(r.author);
+    if (r.is_family_recipe) hasFamily = true;
+    if (!r.author && !r.is_family_recipe) hasNone = true;
   }
+  // Family pinned to top of the author list, No-author pinned to the bottom,
+  // real authors alphabetized between them.
+  const authorList: string[] = [];
+  if (hasFamily) authorList.push(AUTHOR_FAMILY);
+  authorList.push(...[...authors].sort());
+  if (hasNone) authorList.push(AUTHOR_NONE);
   return {
     courses: [...courses].sort(),
     seasons: [...seasons].sort(),
@@ -323,5 +359,6 @@ export async function getFilterFacets(): Promise<{
     cuisines: [...cuisines].sort(),
     platforms: [...platforms].sort(),
     tags: [...tags].sort(),
+    authors: authorList,
   };
 }

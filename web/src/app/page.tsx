@@ -28,6 +28,7 @@ export default async function Home({
     cuisine: multi(sp, "cuisine"),
     platform: multi(sp, "platform"),
     tags: multi(sp, "tags"),
+    author: multi(sp, "author"),
     needsReview: sp.needsReview === "1",
     page: 1,
     pageSize: PAGE_SIZE,
@@ -47,7 +48,8 @@ export default async function Home({
       filters.season.length +
       filters.cuisine.length +
       filters.holiday.length +
-      filters.tags.length >
+      filters.tags.length +
+      filters.author.length >
       0;
 
   return (
@@ -77,6 +79,9 @@ export default async function Home({
           {filters.tags.length > 0 && (
             <input type="hidden" name="tags" value={filters.tags.join(",")} />
           )}
+          {filters.author.length > 0 && (
+            <input type="hidden" name="author" value={filters.author.join(",")} />
+          )}
         </form>
       </div>
 
@@ -85,6 +90,7 @@ export default async function Home({
           cuisines: facets.cuisines,
           holidays: facets.holidays,
           tags: facets.tags,
+          authors: facets.authors,
         }}
       />
 

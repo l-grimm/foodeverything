@@ -10,13 +10,22 @@ export type FilterFacets = {
   cuisines: string[];
   holidays: string[];
   tags: string[];
+  authors: string[];
 };
 
-type FilterKey = "season" | "course" | "cuisine" | "holiday" | "tags";
+type FilterKey = "season" | "course" | "cuisine" | "holiday" | "tags" | "author";
 
-function FilterTrigger({ label, count }: { label: string; count: number }) {
+// IMPORTANT: spread `...rest` onto Button — base-ui's Sheet/Dialog Trigger
+// clones the element passed via `render` and merges in onClick, aria-*, ref,
+// etc. If we don't forward them, the trigger looks right but does nothing.
+function FilterTrigger({
+  label,
+  count,
+  ...rest
+}: { label: string; count: number } & React.ComponentProps<typeof Button>) {
   return (
     <Button
+      {...rest}
       type="button"
       variant={count > 0 ? "default" : "outline"}
       size="sm"
@@ -75,6 +84,13 @@ export function FilterBar({ facets }: { facets: FilterFacets }) {
         selected={selected("cuisine")}
         onApply={(v) => setFilter("cuisine", v)}
         trigger={<FilterTrigger label="Cuisine" count={selected("cuisine").length} />}
+      />
+      <PillSheet
+        title="Author"
+        options={facets.authors}
+        selected={selected("author")}
+        onApply={(v) => setFilter("author", v)}
+        trigger={<FilterTrigger label="Author" count={selected("author").length} />}
       />
       <PillSheet
         title="More — holidays, tags, diet"

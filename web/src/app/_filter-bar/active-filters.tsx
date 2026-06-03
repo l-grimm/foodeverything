@@ -3,7 +3,7 @@
 import { useCallback } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 
-type FilterKey = "season" | "course" | "cuisine" | "holiday" | "tags";
+type FilterKey = "season" | "course" | "cuisine" | "holiday" | "tags" | "author";
 
 const KEY_LABELS: Record<FilterKey, string> = {
   season: "season",
@@ -11,6 +11,7 @@ const KEY_LABELS: Record<FilterKey, string> = {
   cuisine: "cuisine",
   holiday: "holiday",
   tags: "tag",
+  author: "author",
 };
 
 export function ActiveFilters() {
