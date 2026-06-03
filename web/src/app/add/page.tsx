@@ -8,20 +8,23 @@ export const maxDuration = 60;
 
 export default function AddPage() {
   return (
-    <div className="space-y-6 max-w-xl">
+    <div className="space-y-8 max-w-xl">
       <Link
         href="/"
-        className="-ml-3 inline-flex items-center px-3 py-2 text-sm text-muted-foreground rounded-md hover:bg-accent hover:text-foreground"
+        className="-ml-3 inline-flex items-center px-3 py-2 text-sm text-muted-foreground rounded-md hover:bg-card hover:text-foreground"
       >
         ← All recipes
       </Link>
-      <div>
-        <h1 className="text-2xl font-semibold mb-1">Add a recipe</h1>
+      <header className="space-y-3 border-t border-border pt-4">
+        <div className="label-mono">Add a recipe</div>
+        <h1 className="font-display uppercase text-3xl sm:text-4xl leading-[0.95] text-foreground">
+          Paste a URL
+        </h1>
         <p className="text-muted-foreground text-sm">
-          Paste any recipe URL — TikTok, Instagram, Substack, or a regular
-          food blog. iOS Shortcuts still work too; this is the same backend.
+          TikTok, Instagram, Substack, NYT Cooking, or any food blog.
+          iOS Shortcuts still work too — this is the same backend.
         </p>
-      </div>
+      </header>
 
       <AddForm />
     </div>

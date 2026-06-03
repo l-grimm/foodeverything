@@ -1,10 +1,8 @@
 import Link from "next/link";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { RecipeWithCoverage } from "@/lib/types";
 
-// Pure presentational recipe card — used by every section on the home page
-// so all three render consistently. No data fetching here.
+// Pure presentational recipe card. Roux-style: dark surface, cream
+// type, blue accent pill for coverage, mono micro-labels for metadata.
 export function RecipeCard({
   recipe: r,
   showCoverage,
@@ -14,53 +12,73 @@ export function RecipeCard({
 }) {
   return (
     <Link href={`/recipe/${r.id}`} className="block group">
-      <Card className="h-full transition group-hover:shadow-md">
-        <CardHeader className="pb-2">
-          <div className="flex items-start justify-between gap-2">
-            <CardTitle className="text-base leading-snug">{r.title}</CardTitle>
-            {showCoverage && r.total_count > 0 && (
-              <CoverageBadge matched={r.matched_count} total={r.total_count} />
-            )}
-          </div>
-          {r.author && (
-            <div className="text-sm text-muted-foreground">{r.author}</div>
+      <article className="h-full rounded-md border border-border bg-card p-4 transition group-hover:border-primary/60">
+        <div className="flex items-start justify-between gap-3 mb-2">
+          <h3 className="text-base font-medium leading-snug text-foreground">
+            {r.title}
+          </h3>
+          {showCoverage && r.total_count > 0 && (
+            <CoveragePill matched={r.matched_count} total={r.total_count} />
           )}
-        </CardHeader>
-        <CardContent className="pt-0">
-          <div className="flex flex-wrap gap-1">
-            {r.is_family_recipe && (
-              <Badge variant="secondary" className="text-xs">family</Badge>
-            )}
-            {r.holiday && <Badge variant="outline" className="text-xs">{r.holiday}</Badge>}
-            {r.season && <Badge variant="outline" className="text-xs">{r.season}</Badge>}
-            {r.course && <Badge variant="outline" className="text-xs">{r.course}</Badge>}
-            {r.cuisine && <Badge variant="outline" className="text-xs">{r.cuisine}</Badge>}
-            {r.source_platform && r.source_platform !== "manual" && (
-              <Badge variant="outline" className="text-xs">{r.source_platform}</Badge>
-            )}
-            {r.extraction_confidence === "needs_review" && (
-              <Badge variant="destructive" className="text-xs">review</Badge>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+        </div>
+
+        {r.author && (
+          <div className="label-mono mb-3">{r.author}</div>
+        )}
+
+        <div className="flex flex-wrap gap-1.5">
+          {r.is_family_recipe && <MetaChip variant="solid">Family</MetaChip>}
+          {r.holiday && <MetaChip>{r.holiday}</MetaChip>}
+          {r.season && <MetaChip>{r.season}</MetaChip>}
+          {r.course && <MetaChip>{r.course}</MetaChip>}
+          {r.cuisine && <MetaChip>{r.cuisine}</MetaChip>}
+          {r.source_platform && r.source_platform !== "manual" && (
+            <MetaChip>{r.source_platform}</MetaChip>
+          )}
+          {r.extraction_confidence === "needs_review" && (
+            <MetaChip variant="warn">review</MetaChip>
+          )}
+        </div>
+      </article>
     </Link>
   );
 }
 
-function CoverageBadge({ matched, total }: { matched: number; total: number }) {
+function CoveragePill({ matched, total }: { matched: number; total: number }) {
   const missing = total - matched;
-  const pct = total > 0 ? matched / total : 0;
-  const tone =
-    pct >= 0.8 ? "bg-emerald-100 text-emerald-900 border-emerald-300"
-    : pct >= 0.5 ? "bg-amber-50 text-amber-900 border-amber-200"
-    : "bg-muted text-muted-foreground border-border";
+  const ready = missing === 0;
+  // Roux "108 FORKS" treatment: outline pill on dark. Filled when ready.
+  const cls = ready
+    ? "bg-primary text-primary-foreground border-primary"
+    : "border-primary text-primary";
   return (
     <span
-      className={`shrink-0 rounded-full border px-2 py-0.5 text-xs tabular-nums ${tone}`}
+      className={`shrink-0 rounded-full border px-2.5 py-0.5 font-mono text-[0.65rem] uppercase tracking-wider tabular-nums ${cls}`}
       title={`${missing} of ${total} ingredient${total === 1 ? "" : "s"} not in pantry`}
     >
-      {missing === 0 ? "ready" : `${missing} missing`}
+      {ready ? "ready" : `${missing} missing`}
+    </span>
+  );
+}
+
+function MetaChip({
+  children,
+  variant = "outline",
+}: {
+  children: React.ReactNode;
+  variant?: "outline" | "solid" | "warn";
+}) {
+  const cls =
+    variant === "solid"
+      ? "border-primary bg-primary text-primary-foreground"
+      : variant === "warn"
+      ? "border-destructive text-destructive"
+      : "border-border text-muted-foreground";
+  return (
+    <span
+      className={`rounded-full border px-2 py-0.5 font-mono text-[0.65rem] uppercase tracking-wider ${cls}`}
+    >
+      {children}
     </span>
   );
 }

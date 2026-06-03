@@ -64,15 +64,15 @@ export function PillSheet({
   return (
     <Sheet open={open} onOpenChange={handleOpenChange}>
       <SheetTrigger render={trigger as React.ReactElement} />
-      <SheetContent side="bottom" className="max-h-[80vh]">
-        <SheetHeader>
-          <SheetTitle>{title}</SheetTitle>
+      <SheetContent side="bottom" className="max-h-[80vh] bg-background border-border">
+        <SheetHeader className="border-b border-border">
+          <SheetTitle className="label-mono">{title}</SheetTitle>
         </SheetHeader>
         <div className="overflow-y-auto px-4">
           {options.length === 0 ? (
             <p className="text-sm text-muted-foreground py-4">{emptyLabel}</p>
           ) : (
-            <div className="flex flex-wrap gap-2 pb-2">
+            <div className="flex flex-wrap gap-2 pb-2 pt-2">
               {options.map((opt) => {
                 const active = local.includes(opt);
                 return (
@@ -80,10 +80,10 @@ export function PillSheet({
                     key={opt}
                     type="button"
                     onClick={() => toggle(opt)}
-                    className={`rounded-full border px-3 py-1.5 text-sm transition ${
+                    className={`rounded-full border px-3 py-1.5 font-mono text-[0.7rem] uppercase tracking-wider transition ${
                       active
-                        ? "bg-foreground text-background border-foreground"
-                        : "bg-background hover:bg-accent"
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-transparent text-primary border-primary hover:bg-primary/10"
                     }`}
                   >
                     {opt}
@@ -93,17 +93,20 @@ export function PillSheet({
             </div>
           )}
         </div>
-        <SheetFooter>
+        <SheetFooter className="border-t border-border">
           <div className="flex gap-2">
             <Button
               variant="outline"
               onClick={clear}
-              className="flex-1"
+              className="flex-1 font-mono uppercase tracking-wider text-[0.7rem]"
               disabled={local.length === 0}
             >
               Clear
             </Button>
-            <Button onClick={apply} className="flex-1">
+            <Button
+              onClick={apply}
+              className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90 font-mono uppercase tracking-wider text-[0.7rem]"
+            >
               Apply
             </Button>
           </div>

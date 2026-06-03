@@ -34,6 +34,7 @@ export function SectionList({
               variant="outline"
               size="sm"
               onClick={() => setVisible((v) => v + PAGE)}
+              className="font-mono uppercase tracking-wider text-[0.7rem]"
             >
               Show {Math.min(PAGE, remaining)} more
             </Button>
@@ -46,6 +47,7 @@ export function SectionList({
               variant="ghost"
               size="sm"
               onClick={() => setVisible(INITIAL)}
+              className="font-mono uppercase tracking-wider text-[0.7rem]"
             >
               Collapse
             </Button>

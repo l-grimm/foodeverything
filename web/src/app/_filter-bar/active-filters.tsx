@@ -59,7 +59,7 @@ export function ActiveFilters() {
           key={`${key}-${value}`}
           type="button"
           onClick={() => removeOne(key, value)}
-          className="rounded-full border bg-foreground text-background px-2.5 py-0.5 text-xs hover:opacity-90"
+          className="rounded-full border border-primary bg-primary text-primary-foreground px-2.5 py-0.5 font-mono text-[0.7rem] uppercase tracking-wider hover:bg-primary/85"
           title="Remove filter"
         >
           {KEY_LABELS[key]}: {value} <span aria-hidden>×</span>
@@ -69,7 +69,7 @@ export function ActiveFilters() {
         <button
           type="button"
           onClick={clearAll}
-          className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+          className="font-mono text-[0.7rem] uppercase tracking-wider text-muted-foreground underline underline-offset-4 hover:text-foreground"
         >
           Clear all
         </button>

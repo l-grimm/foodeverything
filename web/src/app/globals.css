@@ -10,6 +10,7 @@
   --font-sans: var(--font-sans);
   --font-mono: var(--font-geist-mono);
   --font-heading: var(--font-sans);
+  --font-display: var(--font-display);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -48,73 +49,80 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/*
+ * Palette inspired by the Roux brand book (Cast Iron Black / Apron Blue /
+ * Spinach Green / Flour Off-White). Dark-only — light variant intentionally
+ * not provided per user spec.
+ */
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
+  --background: #1e1e1e;              /* Cast Iron Black */
+  --foreground: #fcf0e0;              /* Flour Off-White */
+
+  --card: #262626;                    /* Slight elevation off the bg */
+  --card-foreground: #fcf0e0;
+  --popover: #262626;
+  --popover-foreground: #fcf0e0;
+
+  --primary: #0963e7;                 /* Apron Blue — the signature accent */
+  --primary-foreground: #fcf0e0;
+
+  --secondary: #2e8150;               /* Spinach Green — the supporting accent */
+  --secondary-foreground: #fcf0e0;
+
+  --muted: #2a2a2a;                   /* Tertiary surface */
+  --muted-foreground: #a39885;        /* Dim cream for secondary text */
+
+  --accent: #0963e7;                  /* Reuses Apron Blue for hover/active */
+  --accent-foreground: #fcf0e0;
+
+  --destructive: #e26856;             /* Warm red-orange, works on dark */
+
+  --border: rgba(252, 240, 224, 0.12);
+  --input: rgba(252, 240, 224, 0.10);
+  --ring: #0963e7;
+
+  --chart-1: #0963e7;
+  --chart-2: #2e8150;
+  --chart-3: #fcf0e0;
+  --chart-4: #a39885;
+  --chart-5: #4a4a4a;
+
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+
+  --sidebar: #1e1e1e;
+  --sidebar-foreground: #fcf0e0;
+  --sidebar-primary: #0963e7;
+  --sidebar-primary-foreground: #fcf0e0;
+  --sidebar-accent: #262626;
+  --sidebar-accent-foreground: #fcf0e0;
+  --sidebar-border: rgba(252, 240, 224, 0.12);
+  --sidebar-ring: #0963e7;
 }
 
+/*
+ * The .dark class on <html> is applied unconditionally in layout.tsx for the
+ * dark-only build; values here mirror :root so any descendant explicitly
+ * scoped via the dark variant (e.g., from shadcn) keeps the same tokens.
+ */
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --background: #1e1e1e;
+  --foreground: #fcf0e0;
+  --card: #262626;
+  --card-foreground: #fcf0e0;
+  --popover: #262626;
+  --popover-foreground: #fcf0e0;
+  --primary: #0963e7;
+  --primary-foreground: #fcf0e0;
+  --secondary: #2e8150;
+  --secondary-foreground: #fcf0e0;
+  --muted: #2a2a2a;
+  --muted-foreground: #a39885;
+  --accent: #0963e7;
+  --accent-foreground: #fcf0e0;
+  --destructive: #e26856;
+  --border: rgba(252, 240, 224, 0.12);
+  --input: rgba(252, 240, 224, 0.10);
+  --ring: #0963e7;
 }
 
 @layer base {
@@ -126,5 +134,19 @@
   }
   html {
     @apply font-sans;
+  }
+  /* Small ALL-CAPS mono micro-label — used everywhere Roux uses
+     "TYPOGRAPHY", "AUTHOR", etc. Drop on any element via class. */
+  .label-mono {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    line-height: 1;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted-foreground);
+  }
+  .font-display {
+    font-family: var(--font-display);
+    letter-spacing: -0.01em;
   }
 }

@@ -19,8 +19,14 @@ export function CopyMissingButton({ missing }: { missing: string[] }) {
   }
 
   return (
-    <Button type="button" onClick={onClick} variant="outline" size="sm">
-      {copied ? "Copied ✓" : `Copy missing list (${missing.length})`}
+    <Button
+      type="button"
+      onClick={onClick}
+      variant="outline"
+      size="sm"
+      className="rounded-full font-mono uppercase tracking-wider text-[0.7rem] border-primary text-primary hover:bg-primary/10"
+    >
+      {copied ? "Copied ✓" : `Copy missing · ${missing.length}`}
     </Button>
   );
 }

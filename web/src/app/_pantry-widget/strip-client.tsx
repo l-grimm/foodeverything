@@ -15,16 +15,16 @@ export function PantryStripClient({ items }: { items: RecentPantryItem[] }) {
 
   if (!expanded) {
     return (
-      <section className="rounded-lg border bg-muted/30 px-3 py-2">
+      <section className="rounded-md border border-border bg-card px-3 py-2">
         <button
           type="button"
           onClick={() => setExpanded(true)}
-          className="flex w-full items-center justify-between gap-2 text-left text-sm"
+          className="flex w-full items-center justify-between gap-2 text-left"
         >
-          <span className="text-xs uppercase tracking-wider text-muted-foreground">
+          <span className="label-mono">
             ▸ Pantry · {items.length} items
           </span>
-          <span className="text-xs text-muted-foreground">edit names</span>
+          <span className="label-mono">edit</span>
         </button>
       </section>
     );
@@ -34,14 +34,14 @@ export function PantryStripClient({ items }: { items: RecentPantryItem[] }) {
   const remaining = items.length - shown.length;
 
   return (
-    <section className="space-y-2 rounded-lg border bg-muted/30 p-3">
+    <section className="space-y-3 rounded-md border border-border bg-card p-3">
       <div className="flex items-center justify-between gap-2">
         <button
           type="button"
           onClick={() => setExpanded(false)}
-          className="text-xs uppercase tracking-wider text-muted-foreground hover:text-foreground"
+          className="label-mono hover:text-foreground"
         >
-          ▾ Pantry · {items.length} items · tap a chip to fix or delete
+          ▾ Pantry · {items.length} items · tap to fix or delete
         </button>
       </div>
       <div className="flex flex-wrap gap-2">
@@ -57,6 +57,7 @@ export function PantryStripClient({ items }: { items: RecentPantryItem[] }) {
               variant="outline"
               size="sm"
               onClick={() => setVisible((v) => v + PAGE)}
+              className="font-mono uppercase text-[0.7rem] tracking-wider"
             >
               Show {Math.min(PAGE, remaining)} more
             </Button>
@@ -69,6 +70,7 @@ export function PantryStripClient({ items }: { items: RecentPantryItem[] }) {
               variant="ghost"
               size="sm"
               onClick={() => setVisible(PAGE)}
+              className="font-mono uppercase text-[0.7rem] tracking-wider"
             >
               Collapse
             </Button>

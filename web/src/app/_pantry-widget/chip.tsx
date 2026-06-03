@@ -43,7 +43,7 @@ export function EditablePantryChip({ id, name }: { id: string; name: string }) {
 
   if (editing) {
     return (
-      <span className="inline-flex flex-wrap items-center gap-1 rounded-full border bg-background px-2 py-1">
+      <span className="inline-flex flex-wrap items-center gap-1 rounded-full border border-border bg-background px-2 py-1">
         <Input
           autoFocus
           value={value}
@@ -60,7 +60,7 @@ export function EditablePantryChip({ id, name }: { id: string; name: string }) {
           variant="ghost"
           onClick={commitEdit}
           disabled={pending}
-          className="h-7 px-2 text-xs"
+          className="h-7 px-2 font-mono text-[0.7rem] uppercase tracking-wider"
         >
           Save
         </Button>
@@ -69,7 +69,7 @@ export function EditablePantryChip({ id, name }: { id: string; name: string }) {
           variant="ghost"
           onClick={cancel}
           disabled={pending}
-          className="h-7 px-2 text-xs"
+          className="h-7 px-2 font-mono text-[0.7rem] uppercase tracking-wider"
         >
           Cancel
         </Button>
@@ -78,7 +78,7 @@ export function EditablePantryChip({ id, name }: { id: string; name: string }) {
           variant="ghost"
           onClick={remove}
           disabled={pending}
-          className="h-7 px-2 text-xs text-destructive hover:text-destructive"
+          className="h-7 px-2 font-mono text-[0.7rem] uppercase tracking-wider text-destructive hover:text-destructive"
         >
           Delete
         </Button>
@@ -91,7 +91,7 @@ export function EditablePantryChip({ id, name }: { id: string; name: string }) {
     <button
       type="button"
       onClick={() => setEditing(true)}
-      className="rounded-full border bg-background px-3 py-1 text-xs hover:bg-accent"
+      className="rounded-full border border-border bg-background px-3 py-1 text-xs text-foreground hover:border-primary hover:text-primary"
       title="Tap to edit or delete"
     >
       {name}

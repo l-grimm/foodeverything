@@ -18,21 +18,28 @@ type FilterKey = "season" | "course" | "cuisine" | "holiday" | "tags" | "author"
 // IMPORTANT: spread `...rest` onto Button — base-ui's Sheet/Dialog Trigger
 // clones the element passed via `render` and merges in onClick, aria-*, ref,
 // etc. If we don't forward them, the trigger looks right but does nothing.
+//
+// Roux pill aesthetic: outlined when inactive (border-primary, blue text),
+// solid blue when one or more values are selected.
 function FilterTrigger({
   label,
   count,
   ...rest
 }: { label: string; count: number } & React.ComponentProps<typeof Button>) {
+  const active = count > 0;
   return (
     <Button
       {...rest}
       type="button"
-      variant={count > 0 ? "default" : "outline"}
       size="sm"
-      className="rounded-full"
+      className={`rounded-full font-mono uppercase tracking-wider text-[0.7rem] border ${
+        active
+          ? "bg-primary text-primary-foreground border-primary hover:bg-primary/90"
+          : "bg-transparent text-primary border-primary hover:bg-primary/10"
+      }`}
     >
       {label}
-      {count > 0 && ` (${count})`}
+      {active && ` · ${count}`}
     </Button>
   );
 }

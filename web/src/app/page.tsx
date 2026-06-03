@@ -53,17 +53,16 @@ export default async function Home({
       0;
 
   return (
-    <div className="space-y-6">
-      {/* Search — sticky so it survives scrolling */}
-      <div className="sticky top-[3.5rem] z-30 -mx-4 bg-background/95 backdrop-blur px-4 py-2 border-b">
+    <div className="space-y-8">
+      {/* Search — sticky beneath the global header */}
+      <div className="sticky top-[3.5rem] z-30 -mx-4 bg-background/95 backdrop-blur px-4 py-2 border-b border-border">
         <form action="/" className="flex gap-2">
           <Input
             name="q"
             defaultValue={filters.q ?? ""}
-            placeholder="Search recipes by title…"
+            placeholder="Search recipes…"
             className="text-base"
           />
-          {/* Preserve current multi-value filters across a search submit */}
           {filters.course.length > 0 && (
             <input type="hidden" name="course" value={filters.course.join(",")} />
           )}
@@ -97,31 +96,28 @@ export default async function Home({
       <ActiveFilters />
 
       <Section
-        title="What to cook now"
+        label="What to cook now"
         subtitle={
           hasPantry
-            ? "Breakfast, lunch, dinner · in-season recipes ranked by pantry coverage"
-            : "Breakfast, lunch, dinner · in-season recipes first"
+            ? "Breakfast, lunch, dinner · in-season first, then by pantry coverage"
+            : "Breakfast, lunch, dinner · in-season first"
         }
         recipes={cookNow.recipes}
         showCoverage={hasPantry}
       />
 
       {recent.recipes.length > 0 && (
-        <section className="space-y-3">
-          <header>
-            <h2 className="text-lg font-semibold">Recently added</h2>
-            <p className="text-xs text-muted-foreground">
-              Recipes you added in the last 14 days
-            </p>
-          </header>
+        <SectionFrame
+          label="Recently added"
+          subtitle="Last 14 days"
+        >
           <RecentStrip recipes={recent.recipes} showCoverage={hasPantry} />
-        </section>
+        </SectionFrame>
       )}
 
       <Section
-        title="Treats & extras"
-        subtitle="Desserts, snacks, drinks, sides, and appetizers"
+        label="Treats & extras"
+        subtitle="Desserts, snacks, drinks, sides, appetizers"
         recipes={treats.recipes}
         showCoverage={hasPantry}
       />
@@ -130,7 +126,7 @@ export default async function Home({
         cookNow.recipes.length === 0 &&
         recent.recipes.length === 0 &&
         treats.recipes.length === 0 && (
-          <div className="rounded-lg border border-dashed p-8 text-center">
+          <div className="rounded-md border border-dashed border-border p-8 text-center">
             <p className="text-sm text-muted-foreground">
               No recipes match these filters. Try clearing some above.
             </p>
@@ -142,25 +138,45 @@ export default async function Home({
   );
 }
 
+// Roux-style section header: top horizontal rule + mono micro-label.
+// Body text label is what the user reads; mono caps echo the brand book.
+function SectionFrame({
+  label,
+  subtitle,
+  children,
+}: {
+  label: string;
+  subtitle?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="space-y-3">
+      <header className="border-t border-border pt-3 space-y-1">
+        <div className="label-mono">{label}</div>
+        {subtitle && (
+          <div className="text-sm text-muted-foreground">{subtitle}</div>
+        )}
+      </header>
+      {children}
+    </section>
+  );
+}
+
 function Section({
-  title,
+  label,
   subtitle,
   recipes,
   showCoverage,
 }: {
-  title: string;
+  label: string;
   subtitle: string;
   recipes: Awaited<ReturnType<typeof listRecipesForSection>>["recipes"];
   showCoverage: boolean;
 }) {
   if (recipes.length === 0) return null;
   return (
-    <section className="space-y-3">
-      <header>
-        <h2 className="text-lg font-semibold">{title}</h2>
-        <p className="text-xs text-muted-foreground">{subtitle}</p>
-      </header>
+    <SectionFrame label={label} subtitle={subtitle}>
       <SectionList recipes={recipes} showCoverage={showCoverage} />
-    </section>
+    </SectionFrame>
   );
 }

@@ -2,7 +2,6 @@
 
 import { useActionState } from "react";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { addUrl, type AddUrlState } from "./actions";
 
@@ -12,22 +11,28 @@ export function AddForm() {
   const [state, action, pending] = useActionState(addUrl, initial);
 
   return (
-    <form action={action} className="space-y-3">
-      <Label htmlFor="url">Recipe URL</Label>
-      <Input
-        id="url"
-        name="url"
-        type="url"
-        placeholder="https://anything — TikTok, Instagram, Substack, NYT Cooking, blog post…"
-        required
-        className="text-base"
+    <form action={action} className="space-y-4">
+      <div className="space-y-1.5">
+        <label htmlFor="url" className="label-mono">Recipe URL</label>
+        <Input
+          id="url"
+          name="url"
+          type="url"
+          placeholder="https://…"
+          required
+          className="text-base"
+          disabled={pending}
+        />
+      </div>
+      <Button
+        type="submit"
         disabled={pending}
-      />
-      <Button type="submit" disabled={pending}>
+        className="rounded-full bg-primary text-primary-foreground font-mono uppercase tracking-wider text-[0.7rem] px-4 hover:bg-primary/90"
+      >
         {pending ? "Ingesting…" : "Add recipe"}
       </Button>
       {state.error && (
-        <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive whitespace-pre-wrap">
+        <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive whitespace-pre-wrap">
           {state.error}
         </div>
       )}
