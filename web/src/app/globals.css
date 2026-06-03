@@ -59,9 +59,12 @@
   --background: #fcf0e0;              /* Flour Off-White — page surface */
   --foreground: #1e1e1e;              /* Cast Iron Black — body text */
 
-  --card: #ffffff;                    /* Subtle white elevation off the cream */
+  --card: #fcf0e0;                    /* Same cream as the page — cards are
+                                         flat panels defined by borders, not
+                                         raised by a surface color */
   --card-foreground: #1e1e1e;
-  --popover: #ffffff;
+  --popover: #ffffff;                 /* Sheets/popovers stay white to pop
+                                         visibly off the cream page */
   --popover-foreground: #1e1e1e;
 
   --primary: #0963e7;                 /* Apron Blue — the signature accent */
