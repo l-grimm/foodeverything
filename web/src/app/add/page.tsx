@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { AddForm } from "./add-form";
 
 // Substack/URL ingestion = fetch + GPT-4o parse; routinely 10–30s. Default
@@ -7,7 +8,10 @@ export const maxDuration = 60;
 
 export default function AddPage() {
   return (
-    <div className="space-y-8 max-w-xl">
+    <div className="space-y-6 max-w-xl">
+      <Link href="/" className="text-sm text-muted-foreground hover:underline">
+        ← All recipes
+      </Link>
       <div>
         <h1 className="text-2xl font-semibold mb-1">Add a recipe</h1>
         <p className="text-muted-foreground text-sm">
