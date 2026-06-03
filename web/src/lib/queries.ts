@@ -1,20 +1,28 @@
 import "server-only";
 import { supabaseAdmin } from "./supabase";
+import {
+  MAIN_COURSES,
+  TREAT_COURSES,
+  currentSeasonWindow,
+} from "./pill-catalogs";
 import type {
   IngredientWithPantry,
   Recipe,
   RecipeWithCoverage,
 } from "./types";
 
+// All filter fields are arrays so the UI can do multi-select (spring AND
+// summer for shoulder months, e.g.). q stays a scalar — search is one box.
 export type RecipeFilters = {
   q?: string;
   family?: boolean;
   favorite?: boolean;
-  course?: string;
-  season?: string;
-  holiday?: string;
-  cuisine?: string;
-  platform?: string;
+  course?: string[];
+  season?: string[];
+  holiday?: string[];
+  cuisine?: string[];
+  platform?: string[];
+  tags?: string[];
   needsReview?: boolean;
   page?: number;
   pageSize?: number;
@@ -25,6 +33,11 @@ export type RecipeListResult = {
   total: number;
   hasPantry: boolean;
 };
+
+export type SectionKey = "cookNow" | "recent" | "treats";
+
+// Recently-added cutoff for the home-page section.
+const RECENT_DAYS = 14;
 
 // Mirror of the assumed-staple list in the recipe_coverage() SQL function
 // (migrations 0006 + 0007). Items here are EXCLUDED from coverage counts
@@ -83,29 +96,53 @@ type CoverageRow = {
   coverage: number | string;
 };
 
-export async function listRecipes(filters: RecipeFilters): Promise<RecipeListResult> {
+// supabase-js builder type is intentionally loose; the chain returns the
+// same shape so typing it as a generic any-ish helper is fine here.
+type RecipeQuery = ReturnType<typeof supabaseAdmin.from<"recipes", never>>["select"] extends (
+  ...args: never[]
+) => infer R
+  ? R
+  : never;
+
+function applyFilters(query: RecipeQuery, filters: RecipeFilters): RecipeQuery {
+  let q = query;
+  if (filters.q) q = q.ilike("title", `%${filters.q}%`);
+  if (filters.family) q = q.eq("is_family_recipe", true);
+  if (filters.favorite) q = q.eq("is_favorite", true);
+  if (filters.course?.length) q = q.in("course", filters.course);
+  if (filters.season?.length) q = q.in("season", filters.season);
+  if (filters.holiday?.length) q = q.in("holiday", filters.holiday);
+  if (filters.cuisine?.length) q = q.in("cuisine", filters.cuisine);
+  if (filters.platform?.length) q = q.in("source_platform", filters.platform);
+  if (filters.tags?.length) q = q.overlaps("tags", filters.tags);
+  if (filters.needsReview) q = q.eq("extraction_confidence", "needs_review");
+  return q;
+}
+
+export async function listRecipesForSection(
+  section: SectionKey,
+  filters: RecipeFilters,
+): Promise<RecipeListResult> {
   const pageSize = filters.pageSize ?? 24;
   const page = filters.page ?? 1;
 
   let query = supabaseAdmin
     .from("recipes")
     .select("*", { count: "exact" })
-    // Higher than the current 808-row catalog to leave headroom; if this
-    // ever caps at default 1000, sort would silently lose the tail.
-    .limit(5000);
+    .limit(5000) as unknown as RecipeQuery;
+  query = applyFilters(query, filters);
 
-  if (filters.q) {
-    // Title-only search. Ingredient search via RPC is a separate backlog item.
-    query = query.ilike("title", `%${filters.q}%`);
+  if (section === "cookNow") {
+    // Only override course with the main-courses set when the user hasn't
+    // explicitly chosen courses. If they did, respect their choice.
+    if (!filters.course?.length) query = query.in("course", MAIN_COURSES);
+  } else if (section === "recent") {
+    const since = new Date();
+    since.setDate(since.getDate() - RECENT_DAYS);
+    query = query.gte("created_at", since.toISOString());
+  } else if (section === "treats") {
+    if (!filters.course?.length) query = query.in("course", TREAT_COURSES);
   }
-  if (filters.family) query = query.eq("is_family_recipe", true);
-  if (filters.favorite) query = query.eq("is_favorite", true);
-  if (filters.course) query = query.eq("course", filters.course);
-  if (filters.season) query = query.eq("season", filters.season);
-  if (filters.holiday) query = query.eq("holiday", filters.holiday);
-  if (filters.cuisine) query = query.eq("cuisine", filters.cuisine);
-  if (filters.platform) query = query.eq("source_platform", filters.platform);
-  if (filters.needsReview) query = query.eq("extraction_confidence", "needs_review");
 
   const [recipesRes, coverageRes, pantryCountRes] = await Promise.all([
     query,
@@ -119,6 +156,7 @@ export async function listRecipes(filters: RecipeFilters): Promise<RecipeListRes
   if (recipesRes.error) throw recipesRes.error;
 
   const hasPantry = (pantryCountRes.count ?? 0) > 0;
+  const seasonWindow = new Set(currentSeasonWindow());
 
   const coverageMap = new Map<string, { matched: number; total: number; coverage: number }>();
   for (const row of (coverageRes.data as CoverageRow[] | null) ?? []) {
@@ -139,12 +177,37 @@ export async function listRecipes(filters: RecipeFilters): Promise<RecipeListRes
     };
   });
 
-  enriched.sort((a, b) => {
-    if (hasPantry && b.coverage !== a.coverage) return b.coverage - a.coverage;
-    const aDate = a.created_at ? Date.parse(a.created_at) : 0;
-    const bDate = b.created_at ? Date.parse(b.created_at) : 0;
-    return bDate - aDate;
-  });
+  // Section-specific sort.
+  if (section === "cookNow") {
+    // Only boost in-season recipes when the user hasn't manually filtered by
+    // season — if they explicitly chose winter, ranking by season match is
+    // a tautology (every match is in their chosen set).
+    const useSeasonBoost = !filters.season?.length;
+    enriched.sort((a, b) => {
+      if (useSeasonBoost) {
+        const aIn = a.season && seasonWindow.has(a.season) ? 1 : 0;
+        const bIn = b.season && seasonWindow.has(b.season) ? 1 : 0;
+        if (bIn !== aIn) return bIn - aIn;
+      }
+      if (hasPantry && b.coverage !== a.coverage) return b.coverage - a.coverage;
+      const aDate = a.created_at ? Date.parse(a.created_at) : 0;
+      const bDate = b.created_at ? Date.parse(b.created_at) : 0;
+      return bDate - aDate;
+    });
+  } else if (section === "recent") {
+    enriched.sort((a, b) => {
+      const aDate = a.created_at ? Date.parse(a.created_at) : 0;
+      const bDate = b.created_at ? Date.parse(b.created_at) : 0;
+      return bDate - aDate;
+    });
+  } else {
+    enriched.sort((a, b) => {
+      if (hasPantry && b.coverage !== a.coverage) return b.coverage - a.coverage;
+      const aDate = a.created_at ? Date.parse(a.created_at) : 0;
+      const bDate = b.created_at ? Date.parse(b.created_at) : 0;
+      return bDate - aDate;
+    });
+  }
 
   const from = (page - 1) * pageSize;
   const paginated = enriched.slice(from, from + pageSize);
@@ -198,9 +261,6 @@ export async function getRecipe(id: string): Promise<{
     return {
       ...ing,
       is_assumed_staple: isStaple,
-      // Staples are neither "have" nor "missing" — they're outside the count.
-      // We mark in_pantry=true defensively so any caller that ignores the
-      // staple flag still treats them as not-missing.
       in_pantry: isStaple || pantrySet.has(norm),
     };
   });
@@ -212,29 +272,39 @@ export async function getRecipe(id: string): Promise<{
   };
 }
 
-// Distinct values for filter chips — pulled once on page load so the
-// filter UI knows what's actually in the DB.
+// Distinct values for filter sheets. Run once per home-page load.
 export async function getFilterFacets(): Promise<{
   courses: string[];
   seasons: string[];
   holidays: string[];
   cuisines: string[];
   platforms: string[];
+  tags: string[];
 }> {
   const { data } = await supabaseAdmin
     .from("recipes")
-    .select("course,season,holiday,cuisine,source_platform");
+    .select("course,season,holiday,cuisine,source_platform,tags")
+    .limit(5000);
   const courses = new Set<string>();
   const seasons = new Set<string>();
   const holidays = new Set<string>();
   const cuisines = new Set<string>();
   const platforms = new Set<string>();
-  for (const r of data ?? []) {
+  const tags = new Set<string>();
+  for (const r of (data ?? []) as {
+    course: string | null;
+    season: string | null;
+    holiday: string | null;
+    cuisine: string | null;
+    source_platform: string | null;
+    tags: string[] | null;
+  }[]) {
     if (r.course) courses.add(r.course);
     if (r.season) seasons.add(r.season);
     if (r.holiday) holidays.add(r.holiday);
     if (r.cuisine) cuisines.add(r.cuisine);
     if (r.source_platform) platforms.add(r.source_platform);
+    if (r.tags) for (const t of r.tags) if (t) tags.add(t);
   }
   return {
     courses: [...courses].sort(),
@@ -242,5 +312,6 @@ export async function getFilterFacets(): Promise<{
     holidays: [...holidays].sort(),
     cuisines: [...cuisines].sort(),
     platforms: [...platforms].sort(),
+    tags: [...tags].sort(),
   };
 }
