@@ -131,10 +131,11 @@ export default async function RecipeDetail({
                     // The count logic above still skips them via
                     // is_assumed_staple.
                     const dim = hasPantry && ing.in_pantry;
+                    const measure = [ing.amount, ing.unit].filter(Boolean).join(" ");
                     return (
                       <li
                         key={ing.id}
-                        className={`flex gap-2 ${dim ? "text-muted-foreground" : ""}`}
+                        className={`flex gap-2 items-baseline ${dim ? "text-muted-foreground" : ""}`}
                       >
                         {hasPantry && (
                           <span
@@ -146,13 +147,20 @@ export default async function RecipeDetail({
                             {ing.in_pantry ? "✓" : "○"}
                           </span>
                         )}
-                        <span className="font-medium tabular-nums">
-                          {[ing.amount, ing.unit].filter(Boolean).join(" ")}
+                        <span className="flex-1 min-w-0">
+                          {measure && (
+                            <span className="font-medium tabular-nums">
+                              {measure}{" "}
+                            </span>
+                          )}
+                          {ing.name}
+                          {ing.prep_note && (
+                            <span className="text-muted-foreground">
+                              {" "}
+                              ({ing.prep_note})
+                            </span>
+                          )}
                         </span>
-                        <span>{ing.name}</span>
-                        {ing.prep_note && (
-                          <span className="text-muted-foreground">({ing.prep_note})</span>
-                        )}
                       </li>
                     );
                   })}
