@@ -50,79 +50,54 @@
 }
 
 /*
- * Palette inspired by the Roux brand book (Cast Iron Black / Apron Blue /
- * Spinach Green / Flour Off-White). Dark-only — light variant intentionally
- * not provided per user spec.
+ * Light palette inspired by the Food Everything brand guide. Flour
+ * Off-White dominates as the page background; Cast Iron Black handles all
+ * reading. Apron Blue and Spinach Green carry through as accent colors.
+ * Light-only build per user spec — no dark variant provided.
  */
 :root {
-  --background: #1e1e1e;              /* Cast Iron Black */
-  --foreground: #fcf0e0;              /* Flour Off-White */
+  --background: #fcf0e0;              /* Flour Off-White — page surface */
+  --foreground: #1e1e1e;              /* Cast Iron Black — body text */
 
-  --card: #262626;                    /* Slight elevation off the bg */
-  --card-foreground: #fcf0e0;
-  --popover: #262626;
-  --popover-foreground: #fcf0e0;
+  --card: #ffffff;                    /* Subtle white elevation off the cream */
+  --card-foreground: #1e1e1e;
+  --popover: #ffffff;
+  --popover-foreground: #1e1e1e;
 
   --primary: #0963e7;                 /* Apron Blue — the signature accent */
-  --primary-foreground: #fcf0e0;
+  --primary-foreground: #fcf0e0;      /* Cream text on blue per brand book */
 
   --secondary: #2e8150;               /* Spinach Green — the supporting accent */
   --secondary-foreground: #fcf0e0;
 
-  --muted: #2a2a2a;                   /* Tertiary surface */
-  --muted-foreground: #a39885;        /* Dim cream for secondary text */
+  --muted: #f5e7cf;                   /* Warm tertiary surface */
+  --muted-foreground: #5a544a;        /* Warm dark gray for secondary text */
 
-  --accent: #0963e7;                  /* Reuses Apron Blue for hover/active */
-  --accent-foreground: #fcf0e0;
+  --accent: #f5e7cf;                  /* Hover/selection tint on cream */
+  --accent-foreground: #1e1e1e;
 
-  --destructive: #e26856;             /* Warm red-orange, works on dark */
+  --destructive: #c14a3a;             /* Deeper red so it reads on cream */
 
-  --border: rgba(252, 240, 224, 0.12);
-  --input: rgba(252, 240, 224, 0.10);
+  --border: rgba(30, 30, 30, 0.14);
+  --input: rgba(30, 30, 30, 0.08);
   --ring: #0963e7;
 
   --chart-1: #0963e7;
   --chart-2: #2e8150;
-  --chart-3: #fcf0e0;
-  --chart-4: #a39885;
-  --chart-5: #4a4a4a;
+  --chart-3: #1e1e1e;
+  --chart-4: #5a544a;
+  --chart-5: #b8a989;
 
   --radius: 0.625rem;
 
-  --sidebar: #1e1e1e;
-  --sidebar-foreground: #fcf0e0;
+  --sidebar: #fcf0e0;
+  --sidebar-foreground: #1e1e1e;
   --sidebar-primary: #0963e7;
   --sidebar-primary-foreground: #fcf0e0;
-  --sidebar-accent: #262626;
-  --sidebar-accent-foreground: #fcf0e0;
-  --sidebar-border: rgba(252, 240, 224, 0.12);
+  --sidebar-accent: #f5e7cf;
+  --sidebar-accent-foreground: #1e1e1e;
+  --sidebar-border: rgba(30, 30, 30, 0.14);
   --sidebar-ring: #0963e7;
-}
-
-/*
- * The .dark class on <html> is applied unconditionally in layout.tsx for the
- * dark-only build; values here mirror :root so any descendant explicitly
- * scoped via the dark variant (e.g., from shadcn) keeps the same tokens.
- */
-.dark {
-  --background: #1e1e1e;
-  --foreground: #fcf0e0;
-  --card: #262626;
-  --card-foreground: #fcf0e0;
-  --popover: #262626;
-  --popover-foreground: #fcf0e0;
-  --primary: #0963e7;
-  --primary-foreground: #fcf0e0;
-  --secondary: #2e8150;
-  --secondary-foreground: #fcf0e0;
-  --muted: #2a2a2a;
-  --muted-foreground: #a39885;
-  --accent: #0963e7;
-  --accent-foreground: #fcf0e0;
-  --destructive: #e26856;
-  --border: rgba(252, 240, 224, 0.12);
-  --input: rgba(252, 240, 224, 0.10);
-  --ring: #0963e7;
 }
 
 @layer base {

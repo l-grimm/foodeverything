@@ -43,7 +43,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html
       lang="en"
-      className={`dark ${generalSans.variable} ${bowlbyOne.variable} ${geistMono.variable} antialiased`}
+      className={`${generalSans.variable} ${bowlbyOne.variable} ${geistMono.variable} antialiased`}
     >
       <body className="bg-background text-foreground min-h-screen font-sans">
         <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
