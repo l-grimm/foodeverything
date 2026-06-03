@@ -35,7 +35,10 @@ export default async function RecipeDetail({
 
   return (
     <article className="space-y-6">
-      <Link href="/" className="text-sm text-muted-foreground hover:underline">
+      <Link
+        href="/"
+        className="-ml-3 inline-flex items-center px-3 py-2 text-sm text-muted-foreground rounded-md hover:bg-accent hover:text-foreground"
+      >
         ← All recipes
       </Link>
 

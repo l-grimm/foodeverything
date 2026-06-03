@@ -88,6 +88,11 @@ const ALIASES: Record<string, string> = {
   "toasted sesame oil": "sesame oil",
   "roasted sesame oil": "sesame oil",
   "dark sesame oil": "sesame oil",
+  "garlic clove": "garlic",
+  "clove of garlic": "garlic",
+  "garlic head": "garlic",
+  "head of garlic": "garlic",
+  "fresh garlic": "garlic",
 };
 
 function normalizeIngredientName(raw: string): string {
