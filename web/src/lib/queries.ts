@@ -39,8 +39,41 @@ const ASSUMED_STAPLES = new Set([
   "water",
 ]);
 
-function normalizeIngredientName(name: string): string {
-  return name.trim().toLowerCase();
+// Mirror of public.normalize_ingredient() (migration 0008). Keep both
+// implementations in sync — recipe_coverage() uses the SQL version for
+// the home page sort, getRecipe() below uses this TS version for the
+// detail page's per-ingredient have/missing marker.
+const SIZE_PREFIX = /^(extra[-\s]large|extra[-\s]small|jumbo|large|medium|small|mini)\s+/;
+const ALIASES: Record<string, string> = {
+  "all-purpose flour": "flour",
+  "all purpose flour": "flour",
+  "ap flour": "flour",
+  "granulated sugar": "sugar",
+  "white sugar": "sugar",
+  "cane sugar": "sugar",
+  "kosher salt": "salt",
+  "sea salt": "salt",
+  "table salt": "salt",
+  "fine sea salt": "salt",
+  "flaky salt": "salt",
+  "freshly ground black pepper": "black pepper",
+  "ground black pepper": "black pepper",
+};
+
+function normalizeIngredientName(raw: string): string {
+  if (!raw) return "";
+  let s = raw.trim().toLowerCase();
+  s = s.replace(SIZE_PREFIX, "");
+  if (ALIASES[s]) return ALIASES[s];
+  if (s.length > 4 && s.endsWith("ies")) return s.slice(0, -3) + "y";
+  if (s.length > 3 && s.endsWith("es")) {
+    const before = s[s.length - 3];
+    if (before === "s" || before === "h" || before === "x" || before === "z" || before === "o") {
+      return s.slice(0, -2);
+    }
+  }
+  if (s.length > 3 && s.endsWith("s") && !s.endsWith("ss")) return s.slice(0, -1);
+  return s;
 }
 
 type CoverageRow = {
