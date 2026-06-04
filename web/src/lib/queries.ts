@@ -131,9 +131,14 @@ const ALIASES: Record<string, string> = {
   "grated parmesan": "parmesan cheese",
   "grated parmigiano": "parmesan cheese",
   "buffalo sauce": "hot sauce",
+  "hot pepper sauce": "hot sauce",
   "vegetable oil": "canola oil",
   "cumin seed": "coriander seed",
   "sichuan peppercorn": "szechuan peppercorn",
+  "chicken bouillon": "chicken stock",
+  "english cucumber": "cucumber",
+  "whole milk": "milk",
+  "skim milk": "milk",
 };
 
 function normalizeIngredientName(raw: string): string {
