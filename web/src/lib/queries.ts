@@ -82,8 +82,11 @@ const ALIASES: Record<string, string> = {
   "table salt": "salt",
   "fine sea salt": "salt",
   "flaky salt": "salt",
-  "freshly ground black pepper": "black pepper",
-  "ground black pepper": "black pepper",
+  "coarse salt": "salt",
+  "freshly ground black pepper": "pepper",
+  "ground black pepper": "pepper",
+  "ground pepper": "pepper",
+  "black pepper": "pepper",
   "miso paste": "miso",
   "white miso": "miso",
   "red miso": "miso",
@@ -139,6 +142,9 @@ const ALIASES: Record<string, string> = {
   "english cucumber": "cucumber",
   "whole milk": "milk",
   "skim milk": "milk",
+  "beef chuck roast": "beef chuck",
+  "beef roast": "beef chuck",
+  "chuck roast": "beef chuck",
 };
 
 function normalizeIngredientName(raw: string): string {
