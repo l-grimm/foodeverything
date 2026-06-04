@@ -1,7 +1,8 @@
-import { listRecipesForSection, getFilterFacets } from "@/lib/queries";
+import { listRecipesForSection, getFilterFacets, type SectionTab } from "@/lib/queries";
 import { FilterBar } from "./_filter-bar/filter-bar";
 import { ActiveFilters } from "./_filter-bar/active-filters";
 import { SectionList } from "./_sections/section-list";
+import { SectionTabs } from "./_sections/section-tabs";
 import { RecentStrip } from "./_sections/recent-strip";
 import { RecentPantryStrip } from "./_pantry-widget/strip";
 
@@ -9,6 +10,10 @@ const PAGE_SIZE = 60;
 
 function multi(sp: Record<string, string | undefined>, key: string): string[] {
   return sp[key]?.split(",").filter(Boolean) ?? [];
+}
+
+function parseTab(raw: string | undefined): SectionTab {
+  return raw === "coverage" ? "coverage" : "seasonal";
 }
 
 export default async function Home({
@@ -33,10 +38,13 @@ export default async function Home({
     pageSize: PAGE_SIZE,
   };
 
+  const cookTab = parseTab(sp.cookTab);
+  const treatsTab = parseTab(sp.treatsTab);
+
   const [cookNow, recent, treats, facets] = await Promise.all([
-    listRecipesForSection("cookNow", filters),
-    listRecipesForSection("recent", filters),
-    listRecipesForSection("treats", filters),
+    listRecipesForSection("cookNow", cookTab, filters),
+    listRecipesForSection("recent", "seasonal", filters), // tab unused for recent
+    listRecipesForSection("treats", treatsTab, filters),
     getFilterFacets(),
   ]);
 
@@ -64,32 +72,35 @@ export default async function Home({
 
       <ActiveFilters />
 
-      <Section
+      <SectionFrame
         label="What to cook now"
-        subtitle={
-          hasPantry
-            ? "Breakfast, lunch, dinner · in-season first, then by pantry coverage"
-            : "Breakfast, lunch, dinner · in-season first"
-        }
-        recipes={cookNow.recipes}
-        showCoverage={hasPantry}
-      />
+        subtitle="Breakfast, lunch, dinner"
+      >
+        <SectionTabs current={cookTab} paramKey="cookTab" sp={sp} />
+        {cookNow.recipes.length > 0 ? (
+          <SectionList recipes={cookNow.recipes} showCoverage={hasPantry} />
+        ) : (
+          <EmptyTab tab={cookTab} />
+        )}
+      </SectionFrame>
+
+      <SectionFrame
+        label="Treats & extras"
+        subtitle="Desserts, snacks, drinks, sides, appetizers"
+      >
+        <SectionTabs current={treatsTab} paramKey="treatsTab" sp={sp} />
+        {treats.recipes.length > 0 ? (
+          <SectionList recipes={treats.recipes} showCoverage={hasPantry} />
+        ) : (
+          <EmptyTab tab={treatsTab} />
+        )}
+      </SectionFrame>
 
       {recent.recipes.length > 0 && (
-        <SectionFrame
-          label="Recently added"
-          subtitle="Last 14 days"
-        >
+        <SectionFrame label="Recently added" subtitle="Last 14 days">
           <RecentStrip recipes={recent.recipes} showCoverage={hasPantry} />
         </SectionFrame>
       )}
-
-      <Section
-        label="Treats & extras"
-        subtitle="Desserts, snacks, drinks, sides, appetizers"
-        recipes={treats.recipes}
-        showCoverage={hasPantry}
-      />
 
       {hasAnyFilter &&
         cookNow.recipes.length === 0 &&
@@ -108,8 +119,6 @@ export default async function Home({
 }
 
 // Section header: horizontal rule + bold mono caps in Spinach Green.
-// Section-scale (text-sm) — distinct from the smaller label-mono used
-// elsewhere for metadata micro-labels.
 function SectionFrame({
   label,
   subtitle,
@@ -134,21 +143,14 @@ function SectionFrame({
   );
 }
 
-function Section({
-  label,
-  subtitle,
-  recipes,
-  showCoverage,
-}: {
-  label: string;
-  subtitle: string;
-  recipes: Awaited<ReturnType<typeof listRecipesForSection>>["recipes"];
-  showCoverage: boolean;
-}) {
-  if (recipes.length === 0) return null;
+function EmptyTab({ tab }: { tab: SectionTab }) {
   return (
-    <SectionFrame label={label} subtitle={subtitle}>
-      <SectionList recipes={recipes} showCoverage={showCoverage} />
-    </SectionFrame>
+    <div className="rounded-md border border-dashed border-border p-6 text-center">
+      <p className="text-sm text-muted-foreground">
+        {tab === "seasonal"
+          ? "Nothing in season here right now — try By coverage."
+          : "Nothing to show. Adjust filters above."}
+      </p>
+    </div>
   );
 }

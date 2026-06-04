@@ -42,16 +42,10 @@ export type RecipeListResult = {
 };
 
 export type SectionKey = "cookNow" | "recent" | "treats";
+export type SectionTab = "seasonal" | "coverage";
 
 // Recently-added cutoff for the home-page section.
 const RECENT_DAYS = 14;
-
-// Weights for the "What to cook now" rank. Coverage carries most of the
-// signal; seasonality is a meaningful nudge but cannot keep a high-coverage
-// recipe out of the top. Pre-2026-06: seasonality was a strict tier above
-// coverage, which kept high-coverage out-of-season recipes invisible.
-const SCORE_COVERAGE_WEIGHT = 0.7;
-const SCORE_SEASON_WEIGHT = 0.3;
 
 // Mirror of the assumed-staple list in the recipe_coverage() SQL function
 // (migrations 0006 + 0007). Items here are EXCLUDED from coverage counts
@@ -230,6 +224,7 @@ async function fetchRecipeIdsByQuery(q: string): Promise<string[]> {
 
 export async function listRecipesForSection(
   section: SectionKey,
+  tab: SectionTab,
   filters: RecipeFilters,
 ): Promise<RecipeListResult> {
   const pageSize = filters.pageSize ?? 24;
@@ -262,6 +257,18 @@ export async function listRecipesForSection(
     if (!filters.course?.length) query = query.in("course", TREAT_COURSES);
   }
 
+  // Seasonal tab on cookNow/treats: hard-filter to recipes whose season is
+  // in the current season window (which already includes overlapping
+  // shoulder months — "almost in season"). User-explicit season filter
+  // wins if set. Recent is chronological-only; tab is ignored there.
+  if (
+    (section === "cookNow" || section === "treats") &&
+    tab === "seasonal" &&
+    !filters.season?.length
+  ) {
+    query = query.in("season", currentSeasonWindow() as unknown as string[]);
+  }
+
   const [recipesRes, coverageRes, pantryCountRes] = await Promise.all([
     query,
     supabaseAdmin.rpc("recipe_coverage"),
@@ -274,7 +281,6 @@ export async function listRecipesForSection(
   if (recipesRes.error) throw recipesRes.error;
 
   const hasPantry = (pantryCountRes.count ?? 0) > 0;
-  const seasonWindow = new Set(currentSeasonWindow());
 
   const coverageMap = new Map<string, { matched: number; total: number; coverage: number }>();
   for (const row of (coverageRes.data as CoverageRow[] | null) ?? []) {
@@ -309,40 +315,18 @@ export async function listRecipesForSection(
     );
   }
 
-  // Section-specific sort.
-  if (section === "cookNow") {
-    // Only boost in-season recipes when the user hasn't manually filtered by
-    // season — if they explicitly chose winter, ranking by season match is
-    // a tautology (every match is in their chosen set).
-    const useSeasonBoost = !filters.season?.length;
-    const scoreFor = (r: RecipeWithCoverage): number => {
-      const cov = hasPantry ? r.coverage : 0;
-      const seasonMatch =
-        useSeasonBoost && r.season && seasonWindow.has(r.season) ? 1 : 0;
-      return SCORE_COVERAGE_WEIGHT * cov + SCORE_SEASON_WEIGHT * seasonMatch;
-    };
-    enriched.sort((a, b) => {
-      const sb = scoreFor(b);
-      const sa = scoreFor(a);
-      if (sb !== sa) return sb - sa;
-      const aDate = a.created_at ? Date.parse(a.created_at) : 0;
-      const bDate = b.created_at ? Date.parse(b.created_at) : 0;
-      return bDate - aDate;
-    });
-  } else if (section === "recent") {
-    enriched.sort((a, b) => {
-      const aDate = a.created_at ? Date.parse(a.created_at) : 0;
-      const bDate = b.created_at ? Date.parse(b.created_at) : 0;
-      return bDate - aDate;
-    });
-  } else {
-    enriched.sort((a, b) => {
-      if (hasPantry && b.coverage !== a.coverage) return b.coverage - a.coverage;
-      const aDate = a.created_at ? Date.parse(a.created_at) : 0;
-      const bDate = b.created_at ? Date.parse(b.created_at) : 0;
-      return bDate - aDate;
-    });
-  }
+  // All sections sort by pantry coverage desc, then created_at desc as
+  // tiebreak. Recent uses created_at as the primary key. Tab/season choice
+  // already shaped which recipes are in `enriched`, so the sort is uniform
+  // across both tabs.
+  const dateScore = (r: RecipeWithCoverage): number =>
+    r.created_at ? Date.parse(r.created_at) : 0;
+  enriched.sort((a, b) => {
+    if (section !== "recent" && hasPantry && b.coverage !== a.coverage) {
+      return b.coverage - a.coverage;
+    }
+    return dateScore(b) - dateScore(a);
+  });
 
   const from = (page - 1) * pageSize;
   const paginated = enriched.slice(from, from + pageSize);
