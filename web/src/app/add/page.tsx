@@ -1,12 +1,21 @@
 import Link from "next/link";
 import { AddForm } from "./add-form";
+import { AddTabs, type AddTab } from "./add-tabs";
+import { AddIngredient } from "./add-ingredient";
 
 // Substack/URL ingestion = fetch + GPT-4o parse; routinely 10–30s. Default
 // serverless timeout (10s on Vercel Hobby) is not enough. 60s is the cap
 // on Hobby and the default on Pro — safe either way.
 export const maxDuration = 60;
 
-export default function AddPage() {
+export default async function AddPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | undefined>>;
+}) {
+  const sp = await searchParams;
+  const tab: AddTab = sp.tab === "ingredient" ? "ingredient" : "recipe";
+
   return (
     <div className="space-y-6 max-w-xl">
       <Link
@@ -17,15 +26,23 @@ export default function AddPage() {
       </Link>
       <header className="space-y-3">
         <h1 className="font-display uppercase text-3xl sm:text-4xl leading-[0.95] text-foreground">
-          Add recipe
+          Add
         </h1>
-        <p className="text-muted-foreground text-sm">
-          TikTok, Instagram, Substack, NYT Cooking, or any food blog.
-          iOS Shortcuts still work too — this is the same backend.
-        </p>
       </header>
 
-      <AddForm />
+      <AddTabs current={tab} sp={sp} />
+
+      {tab === "recipe" ? (
+        <>
+          <p className="text-muted-foreground text-sm">
+            TikTok, Instagram, Substack, NYT Cooking, or any food blog.
+            iOS Shortcuts still work too — this is the same backend.
+          </p>
+          <AddForm />
+        </>
+      ) : (
+        <AddIngredient />
+      )}
     </div>
   );
 }
