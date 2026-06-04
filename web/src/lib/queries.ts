@@ -127,10 +127,20 @@ const ALIASES: Record<string, string> = {
   "parmigiano cheese": "parmesan cheese",
   "grated parmesan": "parmesan cheese",
   "grated parmigiano": "parmesan cheese",
+  "pecorino or parmesan": "parmesan cheese",
+  "parmesan or pecorino": "parmesan cheese",
   "buffalo sauce": "hot sauce",
   "hot pepper sauce": "hot sauce",
   "vegetable oil": "canola oil",
-  "cumin seed": "coriander seed",
+  "grapeseed oil": "canola oil",
+  "vegetable or grapeseed oil": "canola oil",
+  "grapeseed or vegetable oil": "canola oil",
+  "cumin seed": "cumin",
+  "ground cumin": "cumin",
+  "whole cumin": "cumin",
+  "coriander seed": "coriander",
+  "ground coriander": "coriander",
+  "whole coriander": "coriander",
   "sichuan peppercorn": "szechuan peppercorn",
   "chicken bouillon": "chicken stock",
   "english cucumber": "cucumber",
@@ -318,15 +328,21 @@ export async function listRecipesForSection(
     );
   }
 
-  // All sections sort by pantry coverage desc, then created_at desc as
-  // tiebreak. Recent uses created_at as the primary key. Tab/season choice
-  // already shaped which recipes are in `enriched`, so the sort is uniform
-  // across both tabs.
+  // Primary sort: missing ingredients ascending — recipes you're closest
+  // to being able to make come first. Coverage-percent-desc was the old
+  // primary key, but with mixed recipe sizes a 20/28 (71%, missing 8)
+  // outranked an 8/12 (67%, missing 4), which is backwards for the user's
+  // mental model. Coverage desc stays as a tiebreak when missing counts
+  // are equal. created_at desc is the final tiebreak. Recent section just
+  // sorts by date.
   const dateScore = (r: RecipeWithCoverage): number =>
     r.created_at ? Date.parse(r.created_at) : 0;
   enriched.sort((a, b) => {
-    if (section !== "recent" && hasPantry && b.coverage !== a.coverage) {
-      return b.coverage - a.coverage;
+    if (section !== "recent" && hasPantry) {
+      const aMissing = a.total_count - a.matched_count;
+      const bMissing = b.total_count - b.matched_count;
+      if (aMissing !== bMissing) return aMissing - bMissing;
+      if (a.coverage !== b.coverage) return b.coverage - a.coverage;
     }
     return dateScore(b) - dateScore(a);
   });
