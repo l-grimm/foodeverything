@@ -188,7 +188,9 @@ type RecipeQuery = ReturnType<typeof supabaseAdmin.from<"recipes", never>>["sele
 
 function applyFilters(query: RecipeQuery, filters: RecipeFilters): RecipeQuery {
   let q = query;
-  if (filters.q) q = q.ilike("title", `%${filters.q}%`);
+  // filters.q is intentionally NOT handled here — search matches title OR
+  // ingredient name, so the q filter is pre-resolved to an id set in
+  // listRecipesForSection and applied separately via .in("id", ids).
   if (filters.family) q = q.eq("is_family_recipe", true);
   if (filters.favorite) q = q.eq("is_favorite", true);
   if (filters.course?.length) q = q.in("course", filters.course);
@@ -201,6 +203,30 @@ function applyFilters(query: RecipeQuery, filters: RecipeFilters): RecipeQuery {
   return q;
 }
 
+// UUID that can never appear in recipes.id. Used to force an empty result
+// set when the search query matched zero recipes via either title or
+// ingredient — cleaner than threading an early-return through the rest of
+// listRecipesForSection.
+const IMPOSSIBLE_RECIPE_ID = "00000000-0000-0000-0000-000000000000";
+
+async function fetchRecipeIdsByQuery(q: string): Promise<string[]> {
+  const needle = `%${q}%`;
+  const [titleRes, ingRes] = await Promise.all([
+    supabaseAdmin.from("recipes").select("id").ilike("title", needle).limit(5000),
+    supabaseAdmin
+      .from("recipe_ingredients")
+      .select("recipe_id")
+      .ilike("name", needle)
+      .limit(20000),
+  ]);
+  const ids = new Set<string>();
+  for (const r of (titleRes.data ?? []) as { id: string }[]) ids.add(r.id);
+  for (const r of (ingRes.data ?? []) as { recipe_id: string | null }[]) {
+    if (r.recipe_id) ids.add(r.recipe_id);
+  }
+  return [...ids];
+}
+
 export async function listRecipesForSection(
   section: SectionKey,
   filters: RecipeFilters,
@@ -208,11 +234,20 @@ export async function listRecipesForSection(
   const pageSize = filters.pageSize ?? 24;
   const page = filters.page ?? 1;
 
+  // Search matches title OR any ingredient name. Pre-resolve to an id set
+  // so the rest of the filter chain stays a single supabase query.
+  let matchingIds: string[] | undefined;
+  if (filters.q) {
+    const ids = await fetchRecipeIdsByQuery(filters.q);
+    matchingIds = ids.length > 0 ? ids : [IMPOSSIBLE_RECIPE_ID];
+  }
+
   let query = supabaseAdmin
     .from("recipes")
     .select("*", { count: "exact" })
     .limit(5000) as unknown as RecipeQuery;
   query = applyFilters(query, filters);
+  if (matchingIds) query = query.in("id", matchingIds);
 
   if (section === "cookNow") {
     // Only override course with the main-courses set when the user hasn't
