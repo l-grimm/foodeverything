@@ -143,15 +143,15 @@ export default async function RecipeDetail({
                             {ing.in_pantry ? "✓" : "○"}
                           </span>
                         )}
-                        <span className={`flex-1 min-w-0 ${hasPantry && !ing.in_pantry ? "font-semibold" : ""}`}>
+                        <span className="flex-1 min-w-0">
                           {measure && (
-                            <span className="tabular-nums">
+                            <span className="font-medium tabular-nums">
                               {measure}{" "}
                             </span>
                           )}
                           {ing.name}
                           {ing.prep_note && (
-                            <span className="font-normal text-muted-foreground">
+                            <span className="text-muted-foreground">
                               {" "}
                               ({ing.prep_note})
                             </span>

@@ -122,6 +122,14 @@ const ALIASES: Record<string, string> = {
   "red chilli flake": "red pepper flake",
   "crushed red pepper": "red pepper flake",
   "crushed red pepper flake": "red pepper flake",
+  "parmesan": "parmesan cheese",
+  "parm": "parmesan cheese",
+  "parmigiano": "parmesan cheese",
+  "parmigiano reggiano": "parmesan cheese",
+  "parmesan reggiano": "parmesan cheese",
+  "parmigiano cheese": "parmesan cheese",
+  "grated parmesan": "parmesan cheese",
+  "grated parmigiano": "parmesan cheese",
 };
 
 function normalizeIngredientName(raw: string): string {
