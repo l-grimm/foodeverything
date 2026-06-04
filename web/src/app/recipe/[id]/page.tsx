@@ -28,7 +28,6 @@ export default async function RecipeDetail({
 
   const counted = ingredients.filter((i) => !i.is_assumed_staple);
   const missing = counted.filter((i) => !i.in_pantry);
-  const haveCount = counted.length - missing.length;
 
   const meta: { label: string; value: string }[] = [];
   if (recipe.author) meta.push({ label: "Author", value: recipe.author });
@@ -108,15 +107,8 @@ export default async function RecipeDetail({
 
       <section className="space-y-4">
         <header className="border-t border-border pt-3 flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <div className="font-mono uppercase tracking-wider text-sm font-bold text-secondary mb-1">
-              Ingredients
-            </div>
-            {hasPantry && counted.length > 0 && (
-              <div className="text-sm text-muted-foreground tabular-nums">
-                You have {haveCount} of {counted.length}
-              </div>
-            )}
+          <div className="font-mono uppercase tracking-wider text-sm font-bold text-secondary">
+            Ingredients
           </div>
           {hasPantry && missing.length > 0 && (
             <CopyMissingButton missing={missing.map((m) => m.name)} />
@@ -134,12 +126,12 @@ export default async function RecipeDetail({
                 </div>
                 <ul className="space-y-1.5 text-base">
                   {grouped[category].map((ing) => {
-                    const dim = hasPantry && ing.in_pantry;
+                    const checked = hasPantry && ing.in_pantry;
                     const measure = [ing.amount, ing.unit].filter(Boolean).join(" ");
                     return (
                       <li
                         key={ing.id}
-                        className={`flex gap-2 items-baseline ${dim ? "text-muted-foreground" : "text-foreground"}`}
+                        className={`flex gap-2 items-baseline ${checked ? "text-muted-foreground" : "text-foreground"}`}
                       >
                         {hasPantry && (
                           <span
@@ -151,15 +143,15 @@ export default async function RecipeDetail({
                             {ing.in_pantry ? "✓" : "○"}
                           </span>
                         )}
-                        <span className="flex-1 min-w-0">
+                        <span className={`flex-1 min-w-0 ${hasPantry && !ing.in_pantry ? "font-semibold" : ""}`}>
                           {measure && (
-                            <span className="font-medium tabular-nums">
+                            <span className="tabular-nums">
                               {measure}{" "}
                             </span>
                           )}
                           {ing.name}
                           {ing.prep_note && (
-                            <span className="text-muted-foreground">
+                            <span className="font-normal text-muted-foreground">
                               {" "}
                               ({ing.prep_note})
                             </span>
