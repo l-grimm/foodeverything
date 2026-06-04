@@ -17,9 +17,10 @@ const PRESERVED_KEYS = [
 export function SearchBar() {
   const pathname = usePathname();
   const sp = useSearchParams();
-  // The Add page is a focused task — search would be a distraction
-  // (and the only meaningful action there is the URL input).
+  // Hide on focused / detail pages where search would be visual noise.
+  // /add is a single-action surface; /recipe/[id] is reading a recipe.
   if (pathname === "/add") return null;
+  if (pathname.startsWith("/recipe/")) return null;
   return (
     <form action="/" className="flex w-full gap-2">
       <Input

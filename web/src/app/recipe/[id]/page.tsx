@@ -40,12 +40,12 @@ export default async function RecipeDetail({
     <article className="space-y-8">
       <Link
         href="/"
-        className="-ml-3 inline-flex items-center px-3 py-2 text-sm text-muted-foreground rounded-md hover:bg-card hover:text-foreground"
+        className="-ml-2 inline-flex items-center px-2 py-1 text-sm text-muted-foreground rounded-md hover:bg-card hover:text-foreground"
       >
         ← All recipes
       </Link>
 
-      <header className="space-y-4">
+      <header className="space-y-4 -mt-4">
         <h1 className="font-display uppercase text-3xl sm:text-4xl leading-[0.95] text-foreground">
           {recipe.title}
         </h1>

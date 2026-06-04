@@ -8,16 +8,16 @@ export const maxDuration = 60;
 
 export default function AddPage() {
   return (
-    <div className="space-y-8 max-w-xl">
+    <div className="space-y-6 max-w-xl">
       <Link
         href="/"
-        className="-ml-3 inline-flex items-center px-3 py-2 text-sm text-muted-foreground rounded-md hover:bg-card hover:text-foreground"
+        className="-ml-2 inline-flex items-center px-2 py-1 text-sm text-muted-foreground rounded-md hover:bg-card hover:text-foreground"
       >
         ← All recipes
       </Link>
-      <header className="space-y-3 border-t border-border pt-4">
+      <header className="space-y-3">
         <h1 className="font-display uppercase text-3xl sm:text-4xl leading-[0.95] text-foreground">
-          Add a recipe
+          Add recipe
         </h1>
         <p className="text-muted-foreground text-sm">
           TikTok, Instagram, Substack, NYT Cooking, or any food blog.
