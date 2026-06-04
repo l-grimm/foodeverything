@@ -51,7 +51,7 @@ export default async function RecipeDetail({
         </h1>
 
         <div className="flex flex-wrap gap-1.5">
-          {recipe.is_family_recipe && <Pill variant="solid">Family</Pill>}
+          {recipe.is_family_recipe && <Pill variant="family">Family</Pill>}
           {recipe.is_favorite && <Pill variant="solid">★ favorite</Pill>}
           {recipe.holiday && <Pill>{recipe.holiday}</Pill>}
           {recipe.season && <Pill>{recipe.season}</Pill>}
@@ -203,11 +203,13 @@ function Pill({
   variant = "outline",
 }: {
   children: React.ReactNode;
-  variant?: "outline" | "solid" | "warn";
+  variant?: "outline" | "solid" | "family" | "warn";
 }) {
   const cls =
     variant === "solid"
       ? "border-primary bg-primary text-primary-foreground"
+      : variant === "family"
+      ? "border-secondary bg-secondary text-secondary-foreground"
       : variant === "warn"
       ? "border-destructive text-destructive"
       : "border-border text-muted-foreground";

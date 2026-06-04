@@ -27,7 +27,7 @@ export function RecipeCard({
         )}
 
         <div className="flex flex-wrap gap-1.5">
-          {r.is_family_recipe && <MetaChip variant="solid">Family</MetaChip>}
+          {r.is_family_recipe && <MetaChip variant="family">Family</MetaChip>}
           {r.holiday && <MetaChip>{r.holiday}</MetaChip>}
           {r.season && <MetaChip>{r.season}</MetaChip>}
           {r.course && <MetaChip>{r.course}</MetaChip>}
@@ -66,11 +66,13 @@ function MetaChip({
   variant = "outline",
 }: {
   children: React.ReactNode;
-  variant?: "outline" | "solid" | "warn";
+  variant?: "outline" | "solid" | "family" | "warn";
 }) {
   const cls =
     variant === "solid"
       ? "border-primary bg-primary text-primary-foreground"
+      : variant === "family"
+      ? "border-secondary bg-secondary text-secondary-foreground"
       : variant === "warn"
       ? "border-destructive text-destructive"
       : "border-border text-muted-foreground";
