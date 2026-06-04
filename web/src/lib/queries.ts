@@ -94,6 +94,9 @@ const ALIASES: Record<string, string> = {
   "toasted sesame oil": "sesame oil",
   "roasted sesame oil": "sesame oil",
   "dark sesame oil": "sesame oil",
+  "extra virgin olive oil": "olive oil",
+  "virgin olive oil": "olive oil",
+  "evoo": "olive oil",
   "garlic clove": "garlic",
   "clove of garlic": "garlic",
   "garlic head": "garlic",
@@ -111,6 +114,14 @@ const ALIASES: Record<string, string> = {
   "lime peel": "lime",
   "lime slice": "lime",
   "juice of lime": "lime",
+  "chile flake": "red pepper flake",
+  "chili flake": "red pepper flake",
+  "chilli flake": "red pepper flake",
+  "red chile flake": "red pepper flake",
+  "red chili flake": "red pepper flake",
+  "red chilli flake": "red pepper flake",
+  "crushed red pepper": "red pepper flake",
+  "crushed red pepper flake": "red pepper flake",
 };
 
 function normalizeIngredientName(raw: string): string {
