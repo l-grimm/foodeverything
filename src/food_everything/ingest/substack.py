@@ -27,8 +27,9 @@ from food_everything.config import openai_client
 
 MIN_INPUT_LENGTH = 500  # below this with no JSON-LD, refuse (anti-hallucination)
 
-# Bare "Mozilla/5.0" tripped 429s on food52 (and likely other CDN-fronted
-# blogs). Send a full desktop Chrome fingerprint so we look like a browser.
+# Send a full desktop Chrome fingerprint, including the Sec-Fetch hints
+# real browsers emit. Sites with cheap bot heuristics (food52, mid-tier
+# blogs) accept this; aggressive ones (NYT, WSJ) still block.
 BROWSER_HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -37,6 +38,14 @@ BROWSER_HEADERS = {
     ),
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
     "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection": "keep-alive",
+    "Upgrade-Insecure-Requests": "1",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Sec-Fetch-User": "?1",
+    "Cache-Control": "max-age=0",
 }
 
 SYSTEM_PROMPT = """You extract structured recipes from article text.
@@ -124,12 +133,15 @@ class ExtractedRecipe(BaseModel):
     extraction_confidence: Literal["high", "needs_review"]
 
 
-def find_jsonld_recipe(soup: BeautifulSoup) -> Optional[dict]:
-    """Find a schema.org/Recipe JSON-LD object in the page, if present.
+def find_jsonld_recipes(soup: BeautifulSoup) -> list[dict]:
+    """Collect every schema.org/Recipe JSON-LD object on the page.
 
-    JSON-LD can appear as a single dict, a list of dicts, or wrapped inside an
-    @graph array. @type may be a string or a list. Handle all three.
+    JSON-LD can appear as a single dict, a list of dicts, or wrapped inside
+    an @graph array. @type may be a string or a list. Handle all three.
+    Returns the full list so callers can detect multi-recipe pages and
+    fail loudly rather than silently picking one at random.
     """
+    out: list[dict] = []
     for script in soup.find_all("script", type="application/ld+json"):
         if not script.string:
             continue
@@ -147,8 +159,8 @@ def find_jsonld_recipe(soup: BeautifulSoup) -> Optional[dict]:
                 continue
             t = c.get("@type")
             if t == "Recipe" or (isinstance(t, list) and "Recipe" in t):
-                return c
-    return None
+                out.append(c)
+    return out
 
 
 def _extract_article_text(soup: BeautifulSoup) -> str:
@@ -178,9 +190,19 @@ def fetch_article(url: str) -> str:
     resp.raise_for_status()
     soup = BeautifulSoup(resp.text, "html.parser")
 
-    jsonld = find_jsonld_recipe(soup)
-    if jsonld:
-        return json.dumps(jsonld, indent=2)
+    recipes = find_jsonld_recipes(soup)
+    if len(recipes) > 1:
+        # Listicle / round-up pages embed N Recipe JSON-LDs. Picking one
+        # silently leaves the user wondering which one they got, so surface
+        # it as an error and let them paste a specific recipe URL.
+        names = [r.get("name") or "untitled" for r in recipes[:5]]
+        more = f" and {len(recipes) - 5} more" if len(recipes) > 5 else ""
+        raise ValueError(
+            f"this page lists {len(recipes)} recipes ({', '.join(names)}{more}); "
+            "paste a single-recipe URL instead"
+        )
+    if recipes:
+        return json.dumps(recipes[0], indent=2)
 
     text = _extract_article_text(soup)
     if len(text) < MIN_INPUT_LENGTH:
