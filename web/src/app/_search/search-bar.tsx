@@ -1,6 +1,6 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { Input } from "@/components/ui/input";
 
 // Filters that need to be preserved when the user submits a new search
@@ -15,7 +15,11 @@ const PRESERVED_KEYS = [
 ] as const;
 
 export function SearchBar() {
+  const pathname = usePathname();
   const sp = useSearchParams();
+  // The Add page is a focused task — search would be a distraction
+  // (and the only meaningful action there is the URL input).
+  if (pathname === "/add") return null;
   return (
     <form action="/" className="flex w-full gap-2">
       <Input
