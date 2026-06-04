@@ -59,6 +59,9 @@ const ASSUMED_STAPLES = new Set([
   "olive oil",
   "water",
   "salt and pepper",
+  // sparkling water aliases to water (below) and water is already in the
+  // staples set, but recording the canonical here is a safety net so any
+  // future caller of the JS normalizer treats it as ever-present.
 ]);
 
 // Mirror of public.normalize_ingredient() (migration 0011). Keep both
@@ -165,6 +168,9 @@ const ALIASES: Record<string, string> = {
   "whole coriander": "coriander",
   "sichuan peppercorn": "szechuan peppercorn",
   "chicken bouillon": "chicken stock",
+  "vegetable stock": "chicken stock",
+  "sparkling water": "water",
+  "bread crumb": "breadcrumb",
   "english cucumber": "cucumber",
   "whole milk": "milk",
   "skim milk": "milk",
