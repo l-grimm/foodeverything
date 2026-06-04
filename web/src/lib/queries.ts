@@ -66,13 +66,12 @@ const ASSUMED_STAPLES = new Set([
   "water",
 ]);
 
-// Mirror of public.normalize_ingredient() (migration 0008). Keep both
+// Mirror of public.normalize_ingredient() (migration 0011). Keep both
 // implementations in sync — recipe_coverage() uses the SQL version for
 // the home page sort, getRecipe() below uses this TS version for the
 // detail page's per-ingredient have/missing marker.
-const SIZE_PREFIX = /^(extra[-\s]large|extra[-\s]small|jumbo|large|medium|small|mini)\s+/;
+const SIZE_PREFIX = /^(extra\s+large|extra\s+small|jumbo|large|medium|small|mini)\s+/;
 const ALIASES: Record<string, string> = {
-  "all-purpose flour": "flour",
   "all purpose flour": "flour",
   "ap flour": "flour",
   "granulated sugar": "sugar",
@@ -100,21 +99,41 @@ const ALIASES: Record<string, string> = {
   "garlic head": "garlic",
   "head of garlic": "garlic",
   "fresh garlic": "garlic",
+  "lemon wedge": "lemon",
+  "lemon zest": "lemon",
+  "lemon juice": "lemon",
+  "lemon peel": "lemon",
+  "lemon slice": "lemon",
+  "juice of lemon": "lemon",
+  "lime wedge": "lime",
+  "lime zest": "lime",
+  "lime juice": "lime",
+  "lime peel": "lime",
+  "lime slice": "lime",
+  "juice of lime": "lime",
 };
 
 function normalizeIngredientName(raw: string): string {
   if (!raw) return "";
   let s = raw.trim().toLowerCase();
+  // Hyphen → space, collapse whitespace. Then size strip. Then plural →
+  // singular. Then alias lookup. Order matters — plural before alias
+  // means each alias only needs to list the singular form.
+  s = s.replace(/-/g, " ").replace(/\s+/g, " ").trim();
   s = s.replace(SIZE_PREFIX, "");
-  if (ALIASES[s]) return ALIASES[s];
-  if (s.length > 4 && s.endsWith("ies")) return s.slice(0, -3) + "y";
-  if (s.length > 3 && s.endsWith("es")) {
+  if (s.length > 4 && s.endsWith("ies")) {
+    s = s.slice(0, -3) + "y";
+  } else if (s.length > 3 && s.endsWith("es")) {
     const before = s[s.length - 3];
     if (before === "s" || before === "h" || before === "x" || before === "z" || before === "o") {
-      return s.slice(0, -2);
+      s = s.slice(0, -2);
+    } else if (!s.endsWith("ss")) {
+      s = s.slice(0, -1);
     }
+  } else if (s.length > 3 && s.endsWith("s") && !s.endsWith("ss")) {
+    s = s.slice(0, -1);
   }
-  if (s.length > 3 && s.endsWith("s") && !s.endsWith("ss")) return s.slice(0, -1);
+  if (ALIASES[s]) return ALIASES[s];
   return s;
 }
 
