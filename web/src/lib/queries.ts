@@ -145,6 +145,7 @@ const ALIASES: Record<string, string> = {
   "beef chuck roast": "beef chuck",
   "beef roast": "beef chuck",
   "chuck roast": "beef chuck",
+  "anchovy paste": "anchovy",
 };
 
 function normalizeIngredientName(raw: string): string {
