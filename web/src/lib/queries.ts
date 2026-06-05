@@ -171,6 +171,7 @@ const ALIASES: Record<string, string> = {
   "vegetable stock": "chicken stock",
   "sparkling water": "water",
   "bread crumb": "breadcrumb",
+  "green onion": "scallion",
   "english cucumber": "cucumber",
   "whole milk": "milk",
   "skim milk": "milk",
