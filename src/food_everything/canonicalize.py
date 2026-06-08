@@ -14,6 +14,12 @@ CLI:
         Walk every distinct raw name in recipe_ingredients + pantry_items,
         ensure each has a cache entry (LLM-fill any misses).
 
+    uv run python -m food_everything.canonicalize rebuild [--dry-run] [--source SOURCE]
+        Re-canonicalize cache rows through the LLM (defaults to source =
+        alias_legacy). Use this once after the initial migration to lift
+        the cache from "legacy SQL alias output" to "LLM aggressive
+        matching." --dry-run shows the diff without committing.
+
     uv run python -m food_everything.canonicalize lookup "<raw name>"
         Print the canonical for one name (cache or compute).
 """
@@ -179,6 +185,77 @@ def _cli_lookup(raw: str) -> None:
     print(result)
 
 
+def _cli_rebuild(args: list[str]) -> None:
+    """Re-canonicalize existing cache rows via the LLM.
+
+    Targets only rows whose source matches --source (default alias_legacy)
+    so we don't blow away manual user fixes. --dry-run prints the diff
+    without committing.
+    """
+    dry_run = "--dry-run" in args
+    source_filter = "alias_legacy"
+    if "--source" in args:
+        idx = args.index("--source")
+        if idx + 1 < len(args):
+            source_filter = args[idx + 1]
+
+    sb = supabase_client()
+
+    print(f"Loading cache rows with source={source_filter}...", file=sys.stderr)
+    page = 0
+    page_size = 1000
+    rows_data: list[dict] = []
+    while True:
+        res = (
+            sb.table(CACHE_TABLE)
+            .select("raw_name, canonical_name, source")
+            .eq("source", source_filter)
+            .range(page * page_size, (page + 1) * page_size - 1)
+            .execute()
+        )
+        chunk = res.data or []
+        rows_data.extend(chunk)
+        if len(chunk) < page_size:
+            break
+        page += 1
+    print(f"  found {len(rows_data)} rows", file=sys.stderr)
+
+    if not rows_data:
+        print("Nothing to rebuild.", file=sys.stderr)
+        return
+
+    existing_canonicals = list_canonicals(sb)
+    print(f"Existing canonicals snapshot: {len(existing_canonicals)}", file=sys.stderr)
+
+    changes = 0
+    for n, row in enumerate(rows_data, 1):
+        raw = row["raw_name"]
+        old_canonical = row["canonical_name"]
+        new_canonical = canonicalize_with_llm(raw, existing_canonicals)
+
+        if new_canonical and new_canonical != old_canonical:
+            changes += 1
+            if not dry_run:
+                sb.table(CACHE_TABLE).update(
+                    {"canonical_name": new_canonical, "source": "llm"}
+                ).eq("raw_name", raw).execute()
+                if new_canonical not in existing_canonicals:
+                    existing_canonicals.append(new_canonical)
+            print(
+                f"  [{n}/{len(rows_data)}] {raw[:32]:32s}  "
+                f"{old_canonical[:25]:25s} -> {new_canonical}",
+                file=sys.stderr,
+            )
+        elif n % 100 == 0:
+            print(f"  [{n}/{len(rows_data)}] processed (no change)", file=sys.stderr)
+
+    suffix = " (dry-run, no writes)" if dry_run else ""
+    print(
+        f"Done. {changes} canonicals changed of {len(rows_data)}{suffix}.",
+        file=sys.stderr,
+    )
+
+
 def _cli_backfill() -> None:
     """Walk all distinct raw names in the corpus, fill any cache misses."""
     sb = supabase_client()
@@ -229,14 +306,20 @@ def _cli_backfill() -> None:
 
 
 if __name__ == "__main__":
+    USAGE = (
+        "usage: python -m food_everything.canonicalize "
+        "{backfill|rebuild [--dry-run] [--source S]|lookup <raw>}"
+    )
     if len(sys.argv) < 2:
-        print("usage: python -m food_everything.canonicalize {backfill|lookup <raw>}", file=sys.stderr)
+        print(USAGE, file=sys.stderr)
         sys.exit(1)
     cmd = sys.argv[1]
     if cmd == "backfill":
         _cli_backfill()
+    elif cmd == "rebuild":
+        _cli_rebuild(sys.argv[2:])
     elif cmd == "lookup" and len(sys.argv) >= 3:
         _cli_lookup(" ".join(sys.argv[2:]))
     else:
-        print("usage: python -m food_everything.canonicalize {backfill|lookup <raw>}", file=sys.stderr)
+        print(USAGE, file=sys.stderr)
         sys.exit(1)
