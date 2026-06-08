@@ -416,19 +416,46 @@ export async function getRecipe(id: string): Promise<{
   ]);
 
   const pantryItems = (pantryRes.data ?? []) as { name: string }[];
-  const pantrySet = new Set<string>(
-    pantryItems.map((i) => normalizeIngredientName(i.name)),
-  );
+  const ingredientsRaw = (ingredientsRes.data ?? []) as IngredientWithPantry[];
 
-  const enrichedIngredients: IngredientWithPantry[] = (
-    (ingredientsRes.data ?? []) as IngredientWithPantry[]
-  ).map((ing) => {
-    const norm = normalizeIngredientName(ing.name);
-    const isStaple = ASSUMED_STAPLES.has(norm);
+  // Look up canonical names for both sides via the cache. Fall back to the
+  // legacy TS normalizer on cache misses so matching still works for any
+  // ingredient that hasn't been canonicalized yet.
+  const lookupKey = (n: string) => n.trim().toLowerCase();
+  const allRawKeys = new Set<string>();
+  for (const ing of ingredientsRaw) {
+    if (ing.name) allRawKeys.add(lookupKey(ing.name));
+  }
+  for (const item of pantryItems) {
+    if (item.name) allRawKeys.add(lookupKey(item.name));
+  }
+  const cacheByRaw = new Map<string, string>();
+  if (allRawKeys.size > 0) {
+    const { data: cacheRows } = await supabaseAdmin
+      .from("ingredient_canonical_cache")
+      .select("raw_name, canonical_name")
+      .in("raw_name", [...allRawKeys]);
+    for (const row of (cacheRows ?? []) as {
+      raw_name: string;
+      canonical_name: string;
+    }[]) {
+      cacheByRaw.set(row.raw_name, row.canonical_name);
+    }
+  }
+  const canonicalOf = (rawName: string): string => {
+    const key = lookupKey(rawName);
+    return cacheByRaw.get(key) ?? normalizeIngredientName(rawName);
+  };
+
+  const pantrySet = new Set<string>(pantryItems.map((i) => canonicalOf(i.name)));
+
+  const enrichedIngredients: IngredientWithPantry[] = ingredientsRaw.map((ing) => {
+    const canonical = canonicalOf(ing.name);
+    const isStaple = ASSUMED_STAPLES.has(canonical);
     return {
       ...ing,
       is_assumed_staple: isStaple,
-      in_pantry: isStaple || pantrySet.has(norm),
+      in_pantry: isStaple || pantrySet.has(canonical),
     };
   });
 

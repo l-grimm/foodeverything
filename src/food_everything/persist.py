@@ -5,6 +5,7 @@ ExtractedRecipe and write the same recipes + recipe_ingredients rows;
 this module centralizes that to avoid drift across ingesters.
 """
 
+import sys
 from typing import Any, Optional
 
 from food_everything.config import supabase_client
@@ -89,5 +90,21 @@ def write_recipe(
                 ]
             )
         ).execute()
+        _populate_canonical_cache(sb, [ing.name for ing in recipe.ingredients])
 
     return recipe_id
+
+
+def _populate_canonical_cache(sb, raw_names: list[str]) -> None:
+    """Fire-and-forget canonicalize for the newly-inserted ingredient names.
+
+    Best-effort: the recipe is already written; if the LLM call fails we
+    just leave those names without a cache entry and recipe_coverage will
+    fall back to normalize_ingredient() at query time.
+    """
+    try:
+        from food_everything.canonicalize import canonicalize_many
+
+        canonicalize_many(raw_names, sb=sb)
+    except Exception as e:  # pragma: no cover - best-effort
+        print(f"canonicalize_many failed (non-fatal): {e}", file=sys.stderr)

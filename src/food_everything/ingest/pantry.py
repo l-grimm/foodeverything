@@ -163,6 +163,13 @@ def ingest(image_bytes: bytes, mime: str) -> dict:
                 for item in extracted.items
             ]
         ).execute()
+        # Best-effort canonicalization so the new names land in the cache.
+        try:
+            from food_everything.canonicalize import canonicalize_many
+
+            canonicalize_many([item.name for item in extracted.items], sb=sb)
+        except Exception as e:
+            print(f"canonicalize_many failed (non-fatal): {e}", file=sys.stderr)
 
     return {
         "session_id": session_id,
