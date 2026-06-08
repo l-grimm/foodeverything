@@ -60,6 +60,10 @@ export type RecipeWithCoverage = Recipe & {
   matched_count: number;
   total_count: number;
   coverage: number;
+  // Distinct canonical names of unmatched non-staple ingredients. The
+  // home-page pill uses this to show the specific ingredient when there's
+  // exactly one gap.
+  missing_names: string[];
 };
 
 export type IngredientWithPantry = RecipeIngredient & {

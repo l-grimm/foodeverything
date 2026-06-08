@@ -213,6 +213,7 @@ type CoverageRow = {
   matched_count: number;
   total_count: number;
   coverage: number | string;
+  missing_names: string[] | null;
 };
 
 // supabase-js builder type is intentionally loose; the chain returns the
@@ -324,12 +325,16 @@ export async function listRecipesForSection(
 
   const hasPantry = (pantryCountRes.count ?? 0) > 0;
 
-  const coverageMap = new Map<string, { matched: number; total: number; coverage: number }>();
+  const coverageMap = new Map<
+    string,
+    { matched: number; total: number; coverage: number; missing: string[] }
+  >();
   for (const row of (coverageRes.data as CoverageRow[] | null) ?? []) {
     coverageMap.set(row.recipe_id, {
       matched: row.matched_count,
       total: row.total_count,
       coverage: Number(row.coverage),
+      missing: row.missing_names ?? [],
     });
   }
 
@@ -340,6 +345,7 @@ export async function listRecipesForSection(
       matched_count: c?.matched ?? 0,
       total_count: c?.total ?? 0,
       coverage: c?.coverage ?? 0,
+      missing_names: c?.missing ?? [],
     };
   });
 

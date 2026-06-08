@@ -18,7 +18,11 @@ export function RecipeCard({
             {r.title}
           </h3>
           {showCoverage && r.total_count > 0 && (
-            <CoveragePill matched={r.matched_count} total={r.total_count} />
+            <CoveragePill
+              matched={r.matched_count}
+              total={r.total_count}
+              missingNames={r.missing_names}
+            />
           )}
         </div>
 
@@ -44,19 +48,33 @@ export function RecipeCard({
   );
 }
 
-function CoveragePill({ matched, total }: { matched: number; total: number }) {
+function CoveragePill({
+  matched,
+  total,
+  missingNames,
+}: {
+  matched: number;
+  total: number;
+  missingNames: string[];
+}) {
   const missing = total - matched;
   const ready = missing === 0;
-  // Roux "108 FORKS" treatment: outline pill on dark. Filled when ready.
   const cls = ready
     ? "bg-primary text-primary-foreground border-primary"
     : "border-primary text-primary";
+  // When exactly one gap exists, surface the ingredient name itself
+  // instead of "1 missing" — it's the more useful piece of information
+  // ("you need yogurt") vs. a count. Multi-missing stays as a count.
+  let label: string;
+  if (ready) label = "ready";
+  else if (missing === 1 && missingNames[0]) label = missingNames[0];
+  else label = `${missing} missing`;
   return (
     <span
-      className={`shrink-0 rounded-full border px-2.5 py-0.5 font-mono text-[0.65rem] uppercase tracking-wider tabular-nums ${cls}`}
+      className={`shrink-0 rounded-full border px-2.5 py-0.5 font-mono text-[0.65rem] uppercase tracking-wider ${cls} ${missing === 1 ? "" : "tabular-nums"}`}
       title={`${missing} of ${total} ingredient${total === 1 ? "" : "s"} not in pantry`}
     >
-      {ready ? "ready" : `${missing} missing`}
+      {label}
     </span>
   );
 }
