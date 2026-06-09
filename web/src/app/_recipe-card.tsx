@@ -65,10 +65,16 @@ function CoveragePill({
   // When exactly one gap exists, surface the ingredient name itself
   // instead of "1 missing" — it's the more useful piece of information
   // ("you need yogurt") vs. a count. Multi-missing stays as a count.
+  // Truncate long names so they don't blow out the card header.
   let label: string;
-  if (ready) label = "ready";
-  else if (missing === 1 && missingNames[0]) label = missingNames[0];
-  else label = `${missing} missing`;
+  if (ready) {
+    label = "ready";
+  } else if (missing === 1 && missingNames[0]) {
+    const name = missingNames[0];
+    label = name.length > 15 ? `${name.slice(0, 15)}…` : name;
+  } else {
+    label = `${missing} missing`;
+  }
   return (
     <span
       className={`shrink-0 rounded-full border px-2.5 py-0.5 font-mono text-[0.65rem] uppercase tracking-wider ${cls} ${missing === 1 ? "" : "tabular-nums"}`}
