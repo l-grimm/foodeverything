@@ -65,15 +65,23 @@ export function currentSeasonWindow(date = new Date()): Season[] {
   }
 }
 
-// Common diet tag values aggregated under the "More" filter. These are
-// substrings/tags that often appear in the tags[] column on recipes —
-// extraction emits them as free text, so we surface the well-known ones.
+// Curated diet-tag allowlist. Tags on recipes that intersect this set get
+// surfaced under the "Diet" section of the "More" filter sheet; everything
+// else lands in the generic "Tags" section. Values are the canonical forms
+// produced by migration 0032 — lowercase, hyphenated. Keep in sync with
+// the diet branch of the CASE in that migration.
 export const DIET_TAGS = [
   "vegan",
   "vegetarian",
   "gluten-free",
   "dairy-free",
   "keto",
+  "low-carb",
   "paleo",
   "whole30",
+  "kosher",
+  "nut-free",
+  "plant-based",
+  "grain-free",
+  "high-protein",
 ];

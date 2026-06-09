@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { PillSheet } from "./pill-sheet";
-import { COURSES, SEASONS } from "@/lib/pill-catalogs";
+import { SectionedPillSheet } from "./sectioned-pill-sheet";
+import { COURSES, SEASONS, DIET_TAGS } from "@/lib/pill-catalogs";
 
 export type FilterFacets = {
   cuisines: string[];
@@ -69,6 +70,26 @@ export function FilterBar({ facets }: { facets: FilterFacets }) {
 
   const moreCount = selected("holiday").length + selected("tags").length;
 
+  // Split the tags facet into diet (curated allowlist) and everything-else.
+  // Diet tags get their own section under "More" so users see them grouped
+  // separately from workflow tags (weeknight, make-ahead, etc.).
+  const { dietOptions, otherTagOptions } = useMemo(() => {
+    const dietSet = new Set<string>(DIET_TAGS);
+    const diet: string[] = [];
+    const other: string[] = [];
+    for (const t of facets.tags) {
+      if (dietSet.has(t)) diet.push(t);
+      else other.push(t);
+    }
+    // Preserve DIET_TAGS' editorial order rather than alphabetizing.
+    diet.sort((a, b) => DIET_TAGS.indexOf(a) - DIET_TAGS.indexOf(b));
+    return { dietOptions: diet, otherTagOptions: other };
+  }, [facets.tags]);
+
+  const selectedTags = selected("tags");
+  const dietSelected = selectedTags.filter((t) => DIET_TAGS.includes(t));
+  const otherTagsSelected = selectedTags.filter((t) => !DIET_TAGS.includes(t));
+
   return (
     <div className="flex flex-wrap gap-2">
       <PillSheet
@@ -99,23 +120,21 @@ export function FilterBar({ facets }: { facets: FilterFacets }) {
         onApply={(v) => setFilter("author", v)}
         trigger={<FilterTrigger label="Author" count={selected("author").length} />}
       />
-      <PillSheet
-        title="More — holidays, tags, diet"
-        options={[
-          ...facets.holidays.map((h) => `holiday:${h}`),
-          ...facets.tags.map((t) => `tag:${t}`),
+      <SectionedPillSheet
+        title="More"
+        sections={[
+          { key: "holiday", title: "Holiday", options: facets.holidays },
+          { key: "diet", title: "Diet", options: dietOptions },
+          { key: "tags", title: "Tags", options: otherTagOptions },
         ]}
-        selected={[
-          ...selected("holiday").map((h) => `holiday:${h}`),
-          ...selected("tags").map((t) => `tag:${t}`),
-        ]}
-        onApply={(v) => {
-          const holidays = v
-            .filter((x) => x.startsWith("holiday:"))
-            .map((x) => x.slice("holiday:".length));
-          const tags = v
-            .filter((x) => x.startsWith("tag:"))
-            .map((x) => x.slice("tag:".length));
+        selected={{
+          holiday: selected("holiday"),
+          diet: dietSelected,
+          tags: otherTagsSelected,
+        }}
+        onApply={(picked) => {
+          const holidays = picked.holiday ?? [];
+          const tags = [...(picked.diet ?? []), ...(picked.tags ?? [])];
           const next = new URLSearchParams(searchParams.toString());
           if (holidays.length) next.set("holiday", holidays.join(","));
           else next.delete("holiday");
@@ -126,7 +145,7 @@ export function FilterBar({ facets }: { facets: FilterFacets }) {
           router.push(qs ? `${pathname}?${qs}` : pathname);
         }}
         trigger={<FilterTrigger label="More" count={moreCount} />}
-        emptyLabel="No holidays or tags on any recipes yet."
+        emptyLabel="No holidays, diet tags, or tags on any recipes yet."
       />
     </div>
   );
