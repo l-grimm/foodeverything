@@ -164,18 +164,38 @@ def find_jsonld_recipes(soup: BeautifulSoup) -> list[dict]:
 
 
 def _extract_article_text(soup: BeautifulSoup) -> str:
-    """Pull readable article text from a page (fallback when no JSON-LD)."""
-    article = soup.find("article")
-    if article:
-        for tag in article.select(".subscribe, footer, nav"):
-            tag.decompose()
-        return article.get_text(separator="\n\n").strip()
-    for tag in soup.select("script, style, nav, header, footer, noscript"):
+    """Pull readable article text from a page (fallback when no JSON-LD).
+
+    Many WordPress-style food blogs (e.g. yinovacenter.com) ship one or
+    more <article> tags that are just breadcrumb links — the real content
+    sits in <main> or a content div. Iterate every plausible container
+    and pick the one with the most actual text, rather than the first
+    <article> found.
+    """
+    # Strip page-chrome globally before measuring text sizes.
+    for tag in soup.select("script, style, nav, header, footer, noscript, form, aside"):
         tag.decompose()
-    main = soup.select_one("main") or soup.select_one('[role="main"]') or soup.body
-    if main is None:
-        return soup.get_text(separator="\n\n").strip()
-    return main.get_text(separator="\n\n").strip()
+    for tag in soup.select(".subscribe"):
+        tag.decompose()
+
+    candidates: list = []
+    candidates.extend(soup.find_all("article"))
+    main = soup.select_one("main") or soup.select_one('[role="main"]')
+    if main is not None:
+        candidates.append(main)
+    # Highest-signal divs the user could plausibly have content in.
+    for sel in (".main-content", ".post-body", ".post__content", ".entry-content", ".post"):
+        for tag in soup.select(sel):
+            candidates.append(tag)
+    if soup.body is not None:
+        candidates.append(soup.body)
+
+    best = ""
+    for c in candidates:
+        text = c.get_text(separator="\n\n").strip()
+        if len(text) > len(best):
+            best = text
+    return best
 
 
 def fetch_article(url: str) -> str:
