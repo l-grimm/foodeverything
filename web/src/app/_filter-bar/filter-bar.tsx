@@ -16,6 +16,12 @@ export type FilterFacets = {
 
 type FilterKey = "season" | "course" | "cuisine" | "holiday" | "tags" | "author";
 
+// Synthetic pill rendered in the Tags section that flips ?needsReview=1
+// rather than a real tags[] value — extraction_confidence lives on its own
+// recipes column, not in tags[], so we keep its UI affordance grouped with
+// other "filter by recipe status" things but route it to the right param.
+const NEEDS_REVIEW_PILL = "needs-review";
+
 // IMPORTANT: spread `...rest` onto Button — base-ui's Sheet/Dialog Trigger
 // clones the element passed via `render` and merges in onClick, aria-*, ref,
 // etc. If we don't forward them, the trigger looks right but does nothing.
@@ -68,7 +74,11 @@ export function FilterBar({ facets }: { facets: FilterFacets }) {
     [router, pathname, searchParams],
   );
 
-  const moreCount = selected("holiday").length + selected("tags").length;
+  const needsReviewActive = searchParams.get("needsReview") === "1";
+  const moreCount =
+    selected("holiday").length +
+    selected("tags").length +
+    (needsReviewActive ? 1 : 0);
 
   // Split the tags facet into diet (curated allowlist) and everything-else.
   // Diet tags get their own section under "More" so users see them grouped
@@ -125,21 +135,35 @@ export function FilterBar({ facets }: { facets: FilterFacets }) {
         sections={[
           { key: "holiday", title: "Holiday", options: facets.holidays },
           { key: "diet", title: "Diet", options: dietOptions },
-          { key: "tags", title: "Tags", options: otherTagOptions },
+          {
+            key: "tags",
+            title: "Tags",
+            // needs-review pinned first — it's a status, not a content tag.
+            options: [NEEDS_REVIEW_PILL, ...otherTagOptions],
+          },
         ]}
         selected={{
           holiday: selected("holiday"),
           diet: dietSelected,
-          tags: otherTagsSelected,
+          tags: needsReviewActive
+            ? [NEEDS_REVIEW_PILL, ...otherTagsSelected]
+            : otherTagsSelected,
         }}
         onApply={(picked) => {
           const holidays = picked.holiday ?? [];
-          const tags = [...(picked.diet ?? []), ...(picked.tags ?? [])];
+          const pickedTags = picked.tags ?? [];
+          const wantsNeedsReview = pickedTags.includes(NEEDS_REVIEW_PILL);
+          const realTags = [
+            ...(picked.diet ?? []),
+            ...pickedTags.filter((t) => t !== NEEDS_REVIEW_PILL),
+          ];
           const next = new URLSearchParams(searchParams.toString());
           if (holidays.length) next.set("holiday", holidays.join(","));
           else next.delete("holiday");
-          if (tags.length) next.set("tags", tags.join(","));
+          if (realTags.length) next.set("tags", realTags.join(","));
           else next.delete("tags");
+          if (wantsNeedsReview) next.set("needsReview", "1");
+          else next.delete("needsReview");
           next.delete("page");
           const qs = next.toString();
           router.push(qs ? `${pathname}?${qs}` : pathname);
