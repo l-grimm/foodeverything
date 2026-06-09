@@ -4,7 +4,7 @@ import { useCallback, useMemo } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { PillSheet } from "./pill-sheet";
-import { SectionedPillSheet } from "./sectioned-pill-sheet";
+import { SectionedPillSheet, type PillOption } from "./sectioned-pill-sheet";
 import { COURSES, SEASONS, DIET_TAGS } from "@/lib/pill-catalogs";
 
 export type FilterFacets = {
@@ -138,8 +138,16 @@ export function FilterBar({ facets }: { facets: FilterFacets }) {
           {
             key: "tags",
             title: "Tags",
-            // needs-review pinned first — it's a status, not a content tag.
-            options: [NEEDS_REVIEW_PILL, ...otherTagOptions],
+            // needs-review pinned first — status, not content tag. Rendered
+            // as "review" in destructive red to mirror the recipe-card pill.
+            options: [
+              {
+                value: NEEDS_REVIEW_PILL,
+                label: "review",
+                variant: "warn",
+              } satisfies PillOption,
+              ...otherTagOptions,
+            ],
           },
         ]}
         selected={{

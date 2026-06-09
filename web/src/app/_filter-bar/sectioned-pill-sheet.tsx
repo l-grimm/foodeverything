@@ -11,11 +11,44 @@ import {
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 
+// A section option is usually just its value (rendered as-is, default
+// styling). Pass an object when you need a different display label or a
+// non-default variant — used by the "needs-review" pill to show "review"
+// in destructive red, matching the same pill on recipe cards.
+export type PillOption =
+  | string
+  | { value: string; label?: string; variant?: "default" | "warn" };
+
 export type Section = {
   key: string;
   title: string;
-  options: string[];
+  options: PillOption[];
 };
+
+function normalize(opt: PillOption): {
+  value: string;
+  label: string;
+  variant: "default" | "warn";
+} {
+  if (typeof opt === "string")
+    return { value: opt, label: opt, variant: "default" };
+  return {
+    value: opt.value,
+    label: opt.label ?? opt.value,
+    variant: opt.variant ?? "default",
+  };
+}
+
+function pillClasses(variant: "default" | "warn", active: boolean): string {
+  if (variant === "warn") {
+    return active
+      ? "bg-destructive text-destructive-foreground border-destructive"
+      : "bg-transparent text-destructive border-destructive hover:bg-destructive/10";
+  }
+  return active
+    ? "bg-primary text-primary-foreground border-primary"
+    : "bg-transparent text-primary border-primary hover:bg-primary/10";
+}
 
 // Sectioned pill sheet — same shell as PillSheet but the body is grouped
 // under section headers. Powers the "More" filter so the user picks from
@@ -86,20 +119,17 @@ export function SectionedPillSheet({
                 <div key={s.key}>
                   <div className="label-mono mb-2">{s.title}</div>
                   <div className="flex flex-wrap gap-2">
-                    {s.options.map((opt) => {
-                      const active = (local[s.key] ?? []).includes(opt);
+                    {s.options.map((rawOpt) => {
+                      const { value, label, variant } = normalize(rawOpt);
+                      const active = (local[s.key] ?? []).includes(value);
                       return (
                         <button
-                          key={opt}
+                          key={value}
                           type="button"
-                          onClick={() => toggle(s.key, opt)}
-                          className={`rounded-full border px-3 py-1.5 font-mono text-[0.7rem] uppercase tracking-wider transition ${
-                            active
-                              ? "bg-primary text-primary-foreground border-primary"
-                              : "bg-transparent text-primary border-primary hover:bg-primary/10"
-                          }`}
+                          onClick={() => toggle(s.key, value)}
+                          className={`rounded-full border px-3 py-1.5 font-mono text-[0.7rem] uppercase tracking-wider transition ${pillClasses(variant, active)}`}
                         >
-                          {opt}
+                          {label}
                         </button>
                       );
                     })}
