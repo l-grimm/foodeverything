@@ -172,10 +172,16 @@ def _extract_article_text(soup: BeautifulSoup) -> str:
     and pick the one with the most actual text, rather than the first
     <article> found.
     """
-    # Strip page-chrome globally before measuring text sizes.
+    # Strip page-chrome globally before measuring text sizes. Comments
+    # need to go too — Smitten Kitchen and similar WP blogs render each
+    # comment as its own <article>, which inflates the main container to
+    # hundreds of kB of comment text on popular posts.
     for tag in soup.select("script, style, nav, header, footer, noscript, form, aside"):
         tag.decompose()
-    for tag in soup.select(".subscribe"):
+    for tag in soup.select(
+        ".subscribe, .comments, .comments-area, .comment-list, #comments, "
+        ".comment-respond, #respond, .comment-form"
+    ):
         tag.decompose()
 
     candidates: list = []
