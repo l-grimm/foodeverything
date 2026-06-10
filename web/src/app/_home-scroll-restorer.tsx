@@ -4,31 +4,66 @@ import { useEffect } from "react";
 
 const SCROLL_KEY = "home-scroll-y";
 
-// Save the home page's window.scrollY on the way out, restore it on
-// the way in. Next App Router unmounts the home page when the user taps
-// into /recipe/[id] and re-mounts it on back navigation — neither side
-// of that round-trip preserves window scroll natively. This is the
-// belt-and-suspenders fix.
+// Save the home page's window.scrollY continuously while the user is on
+// /, restore it when they come back from /recipe/[id].
 //
-// useEffect cleanup runs at unmount (navigation away) → save scrollY.
-// useEffect setup runs at mount (navigation in) → read + restore.
-// Empty deps array so it only fires on real mount/unmount, not on the
-// many re-renders from filter or tab changes.
+// Why this is harder than it looks:
+// 1. Relying on useEffect cleanup to save the scroll on unmount is
+//    unreliable in App Router — concurrent rendering means the cleanup
+//    may not fire in the order we expect, and on a popstate-triggered
+//    transition the old page may unmount after the new page's effects
+//    have already fired. So we save on every scroll event instead
+//    (debounced via rAF) — whatever the latest position is, it's in
+//    sessionStorage.
+// 2. Next's router fires an auto-scroll-to-top on navigation completion,
+//    which can clobber our restoration. We retry across several frames
+//    until window.scrollY actually equals the target.
+// 3. The page may not be fully laid out on the first paint after mount
+//    (especially when React hydrates the streamed tree); the retry loop
+//    also covers that case — once document.body.scrollHeight is tall
+//    enough, the scrollTo call sticks.
 export function HomeScrollRestorer() {
   useEffect(() => {
-    const raw = sessionStorage.getItem(SCROLL_KEY);
-    if (raw) {
-      const y = Number(raw);
-      if (Number.isFinite(y) && y > 0) {
-        // Defer one frame so the browser has the home page's full layout
-        // before we ask it to jump. Otherwise on a fresh un-hide the
-        // scroll lands at 0 because layout hasn't settled.
-        requestAnimationFrame(() => window.scrollTo(0, y));
-      }
-    }
-    return () => {
+    let scrollSaveScheduled = false;
+    let isRestoring = false;
+
+    const saveScroll = () => {
+      scrollSaveScheduled = false;
+      if (isRestoring) return;
       sessionStorage.setItem(SCROLL_KEY, String(window.scrollY));
     };
+
+    const handleScroll = () => {
+      if (scrollSaveScheduled) return;
+      scrollSaveScheduled = true;
+      requestAnimationFrame(saveScroll);
+    };
+
+    // Restore on mount with retries — Next's auto-scroll-to-top and
+    // late hydration can both knock us off target.
+    const raw = sessionStorage.getItem(SCROLL_KEY);
+    const target = raw ? Number(raw) : 0;
+    if (Number.isFinite(target) && target > 0) {
+      isRestoring = true;
+      let attempts = 0;
+      const maxAttempts = 30; // ~500ms at 60fps — enough to outlast nav
+      const restore = () => {
+        window.scrollTo(0, target);
+        attempts++;
+        if (attempts < maxAttempts && Math.abs(window.scrollY - target) > 2) {
+          requestAnimationFrame(restore);
+        } else {
+          isRestoring = false;
+        }
+      };
+      requestAnimationFrame(restore);
+    }
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+    };
   }, []);
+
   return null;
 }
