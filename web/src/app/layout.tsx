@@ -61,9 +61,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 Food Everything
               </span>
             </Link>
-            <Suspense fallback={null}>
-              <HeaderAddButton />
-            </Suspense>
+            <HeaderAddButton />
           </div>
           <div className="mx-auto max-w-5xl px-4 pb-3">
             <Suspense fallback={null}>

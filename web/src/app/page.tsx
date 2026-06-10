@@ -5,6 +5,7 @@ import { SectionList } from "./_sections/section-list";
 import { SectionTabs } from "./_sections/section-tabs";
 import { RecentStrip } from "./_sections/recent-strip";
 import { RecentPantryStrip } from "./_pantry-widget/strip";
+import { HomeScrollRestorer } from "./_home-scroll-restorer";
 
 const PAGE_SIZE = 60;
 
@@ -61,6 +62,7 @@ export default async function Home({
 
   return (
     <div className="space-y-8">
+      <HomeScrollRestorer />
       <FilterBar
         facets={{
           cuisines: facets.cuisines,
