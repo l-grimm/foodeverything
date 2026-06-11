@@ -44,9 +44,9 @@ export function RecipeViewToggle({
 
   return (
     <>
-      <div className="flex items-center justify-between -mb-4">
+      <div className="flex items-center justify-between gap-3 mb-6">
         <BackToRecipes />
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <FavoriteButton
             recipeId={recipe.id}
             initial={recipe.is_favorite === true}
