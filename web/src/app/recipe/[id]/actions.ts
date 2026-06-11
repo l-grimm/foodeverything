@@ -200,3 +200,19 @@ export async function setFavorite(id: string, value: boolean) {
 
   return { ok: true as const };
 }
+
+// Hard-delete a recipe and (via FK CASCADE) all of its
+// recipe_ingredients. email_ingestions / airtable_imports / local_imports
+// have ON DELETE SET NULL so the ingest provenance rows survive with a
+// dangling pointer — that's intentional; we want to know we once
+// ingested something even if the user later deleted it.
+export async function deleteRecipe(id: string) {
+  const { error } = await supabaseAdmin
+    .from("recipes")
+    .delete()
+    .eq("id", id);
+  if (error) throw error;
+
+  revalidatePath("/");
+  return { ok: true as const };
+}

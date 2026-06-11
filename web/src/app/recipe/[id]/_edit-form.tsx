@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import type { IngredientCategory, Recipe, RecipeIngredient } from "@/lib/types";
-import { updateRecipe, type IngredientEditDraft } from "./actions";
+import { deleteRecipe, updateRecipe, type IngredientEditDraft } from "./actions";
 
 const CATEGORIES: IngredientCategory[] = [
   "produce",
@@ -69,6 +70,8 @@ export function RecipeEditForm({
   const [rows, setRows] = useState<IngredientRow[]>(ingredients.map(toRow));
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [deleting, startDeleteTransition] = useTransition();
+  const router = useRouter();
 
   function updateRow(key: string, patch: Partial<IngredientRow>) {
     setRows((prev) =>
@@ -128,6 +131,27 @@ export function RecipeEditForm({
       } catch (e) {
         const msg =
           e instanceof Error ? e.message : "Save failed. Try again.";
+        setError(msg);
+      }
+    });
+  }
+
+  function confirmDelete() {
+    if (typeof window === "undefined") return;
+    const ok = window.confirm(
+      `Delete "${recipe.title}"? This can't be undone.`,
+    );
+    if (!ok) return;
+    setError(null);
+    startDeleteTransition(async () => {
+      try {
+        await deleteRecipe(recipe.id);
+        // Replace so the recipe URL doesn't sit in history; back-button
+        // shouldn't return to a 404'd page.
+        router.replace("/");
+      } catch (e) {
+        const msg =
+          e instanceof Error ? e.message : "Delete failed. Try again.";
         setError(msg);
       }
     });
@@ -345,6 +369,18 @@ export function RecipeEditForm({
         pending={pending}
         error={error}
       />
+
+      <section className="border-t border-border pt-6 flex justify-start">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={confirmDelete}
+          disabled={deleting || pending}
+          className="font-mono uppercase tracking-wider text-[0.7rem] border-destructive text-destructive hover:bg-destructive/10"
+        >
+          {deleting ? "Deleting…" : "Delete recipe"}
+        </Button>
+      </section>
     </article>
   );
 }
