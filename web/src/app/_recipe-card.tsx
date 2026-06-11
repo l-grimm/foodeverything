@@ -96,7 +96,7 @@ function MetaChip({
     variant === "solid"
       ? "border-primary bg-primary text-primary-foreground"
       : variant === "family"
-      ? "border-secondary bg-secondary text-secondary-foreground"
+      ? "border-secondary text-secondary"
       : variant === "warn"
       ? "border-destructive text-destructive"
       : "border-border text-muted-foreground";

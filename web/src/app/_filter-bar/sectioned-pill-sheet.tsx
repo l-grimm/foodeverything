@@ -13,11 +13,13 @@ import { Button } from "@/components/ui/button";
 
 // A section option is usually just its value (rendered as-is, default
 // styling). Pass an object when you need a different display label or a
-// non-default variant — used by the "needs-review" pill to show "review"
-// in destructive red, matching the same pill on recipe cards.
+// non-default variant — used by the "review" pill (red) and "family"
+// pill (green) so they visually match the same chips on recipe cards.
+export type PillVariant = "default" | "warn" | "family";
+
 export type PillOption =
   | string
-  | { value: string; label?: string; variant?: "default" | "warn" };
+  | { value: string; label?: string; variant?: PillVariant };
 
 export type Section = {
   key: string;
@@ -28,7 +30,7 @@ export type Section = {
 function normalize(opt: PillOption): {
   value: string;
   label: string;
-  variant: "default" | "warn";
+  variant: PillVariant;
 } {
   if (typeof opt === "string")
     return { value: opt, label: opt, variant: "default" };
@@ -39,11 +41,16 @@ function normalize(opt: PillOption): {
   };
 }
 
-function pillClasses(variant: "default" | "warn", active: boolean): string {
+function pillClasses(variant: PillVariant, active: boolean): string {
   if (variant === "warn") {
     return active
       ? "bg-destructive text-destructive-foreground border-destructive"
       : "bg-transparent text-destructive border-destructive hover:bg-destructive/10";
+  }
+  if (variant === "family") {
+    return active
+      ? "bg-secondary text-secondary-foreground border-secondary"
+      : "bg-transparent text-secondary border-secondary hover:bg-secondary/10";
   }
   return active
     ? "bg-primary text-primary-foreground border-primary"
