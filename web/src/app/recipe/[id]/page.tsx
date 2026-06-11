@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { getRecipe } from "@/lib/queries";
 import type { IngredientWithPantry } from "@/lib/types";
 import { CopyMissingButton } from "./copy-missing-button";
-import { BackToRecipes } from "../../_back-link";
+import { RecipeViewToggle } from "./_view-toggle";
 
 export default async function RecipeDetail({
   params,
@@ -37,10 +37,9 @@ export default async function RecipeDetail({
   if (recipe.total_time) meta.push({ label: "Total time", value: recipe.total_time });
 
   return (
-    <article className="space-y-8">
-      <BackToRecipes />
-
-      <header className="space-y-4 -mt-4">
+    <RecipeViewToggle recipe={recipe} ingredients={ingredients}>
+      <article className="space-y-8">
+        <header className="space-y-4">
         <h1 className="font-display uppercase text-3xl sm:text-4xl leading-[0.95] text-foreground">
           {recipe.title}
         </h1>
@@ -179,19 +178,20 @@ export default async function RecipeDetail({
         </section>
       )}
 
-      {recipe.my_notes && (
-        <section className="space-y-3">
-          <header className="border-t border-border pt-3">
-            <div className="font-mono uppercase tracking-wider text-sm font-bold text-secondary">
-              My notes
+        {recipe.my_notes && (
+          <section className="space-y-3">
+            <header className="border-t border-border pt-3">
+              <div className="font-mono uppercase tracking-wider text-sm font-bold text-secondary">
+                My notes
+              </div>
+            </header>
+            <div className="rounded-md border border-border bg-card p-4 whitespace-pre-wrap text-sm">
+              {recipe.my_notes}
             </div>
-          </header>
-          <div className="rounded-md border border-border bg-card p-4 whitespace-pre-wrap text-sm">
-            {recipe.my_notes}
-          </div>
-        </section>
-      )}
-    </article>
+          </section>
+        )}
+      </article>
+    </RecipeViewToggle>
   );
 }
 
