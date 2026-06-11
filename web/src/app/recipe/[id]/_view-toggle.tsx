@@ -1,7 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import {
+  usePathname,
+  useRouter,
+  useSearchParams,
+} from "next/navigation";
 import { BackToRecipes } from "../../_back-link";
 import { Button } from "@/components/ui/button";
 import type { Recipe, RecipeIngredient } from "@/lib/types";
@@ -13,9 +16,14 @@ import { FavoriteButton } from "./_favorite-button";
 // the read view server-rendered (no client-side JS for the markup) and
 // only ships the edit form when the user enters edit mode.
 //
-// Cancel returns to read mode without saving. Save commits via the
-// server action and then router.refresh() so the children's server
-// component re-fetches the fresh recipe before we flip back.
+// Edit mode lives in the URL (`?edit=1`) rather than local state so the
+// global header (HeaderAddButton) can react to it — when the user is
+// editing, the "+ Add" button in the layout hides itself. Side benefit:
+// reload-stays-in-edit-mode if the user accidentally reloads.
+//
+// Cancel removes the `?edit` param. Save calls the server action,
+// router.refresh()es so the read view picks up the new data, then
+// drops the param.
 export function RecipeViewToggle({
   recipe,
   ingredients,
@@ -25,18 +33,33 @@ export function RecipeViewToggle({
   ingredients: RecipeIngredient[];
   children: React.ReactNode;
 }) {
-  const [editing, setEditing] = useState(false);
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const editing = searchParams.get("edit") === "1";
+
+  function enterEdit() {
+    const next = new URLSearchParams(searchParams.toString());
+    next.set("edit", "1");
+    router.push(`${pathname}?${next.toString()}`);
+  }
+
+  function exitEdit() {
+    const next = new URLSearchParams(searchParams.toString());
+    next.delete("edit");
+    const qs = next.toString();
+    router.push(qs ? `${pathname}?${qs}` : pathname);
+  }
 
   if (editing) {
     return (
       <RecipeEditForm
         recipe={recipe}
         ingredients={ingredients}
-        onCancel={() => setEditing(false)}
+        onCancel={exitEdit}
         onSaved={() => {
           router.refresh();
-          setEditing(false);
+          exitEdit();
         }}
       />
     );
@@ -55,7 +78,7 @@ export function RecipeViewToggle({
             type="button"
             size="sm"
             variant="outline"
-            onClick={() => setEditing(true)}
+            onClick={enterEdit}
             className="font-mono uppercase tracking-wider text-[0.7rem]"
           >
             Edit

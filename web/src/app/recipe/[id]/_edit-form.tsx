@@ -148,7 +148,7 @@ export function RecipeEditForm({
           type="text"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          className={`${inputCls} text-2xl font-display uppercase`}
+          className={inputCls}
         />
       </section>
 
