@@ -183,3 +183,20 @@ export async function updateRecipe(id: string, payload: UpdateRecipePayload) {
 
   return { ok: true as const };
 }
+
+// Flip recipes.is_favorite to the supplied boolean. Called from the
+// FavoriteButton on the recipe-detail action bar. Revalidates both
+// the detail page (so the chip on the next read is correct) and the
+// home page (so favorites get the star prefix on cards).
+export async function setFavorite(id: string, value: boolean) {
+  const { error } = await supabaseAdmin
+    .from("recipes")
+    .update({ is_favorite: value })
+    .eq("id", id);
+  if (error) throw error;
+
+  revalidatePath(`/recipe/${id}`);
+  revalidatePath("/");
+
+  return { ok: true as const };
+}

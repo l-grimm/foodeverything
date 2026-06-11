@@ -46,7 +46,6 @@ export default async function RecipeDetail({
 
         <div className="flex flex-wrap gap-1.5">
           {recipe.is_family_recipe && <Pill variant="family">Family</Pill>}
-          {recipe.is_favorite && <Pill variant="solid">★ favorite</Pill>}
           {recipe.holiday && <Pill>{recipe.holiday}</Pill>}
           {recipe.season && <Pill>{recipe.season}</Pill>}
           {recipe.course && <Pill>{recipe.course}</Pill>}

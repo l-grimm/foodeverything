@@ -6,6 +6,7 @@ import { BackToRecipes } from "../../_back-link";
 import { Button } from "@/components/ui/button";
 import type { Recipe, RecipeIngredient } from "@/lib/types";
 import { RecipeEditForm } from "./_edit-form";
+import { FavoriteButton } from "./_favorite-button";
 
 // Thin client wrapper that decides whether to show the server-rendered
 // read view (passed as `children`) or the client-side edit form. Keeps
@@ -45,15 +46,21 @@ export function RecipeViewToggle({
     <>
       <div className="flex items-center justify-between -mb-4">
         <BackToRecipes />
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          onClick={() => setEditing(true)}
-          className="font-mono uppercase tracking-wider text-[0.7rem]"
-        >
-          Edit
-        </Button>
+        <div className="flex items-center gap-2">
+          <FavoriteButton
+            recipeId={recipe.id}
+            initial={recipe.is_favorite === true}
+          />
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => setEditing(true)}
+            className="font-mono uppercase tracking-wider text-[0.7rem]"
+          >
+            Edit
+          </Button>
+        </div>
       </div>
       {children}
     </>

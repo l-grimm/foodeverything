@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Star } from "lucide-react";
 import type { RecipeWithCoverage } from "@/lib/types";
 
 // Pure presentational recipe card. Roux-style: dark surface, cream
@@ -14,8 +15,16 @@ export function RecipeCard({
     <Link href={`/recipe/${r.id}`} className="block group">
       <article className="h-full rounded-md border border-border bg-card p-4 transition group-hover:border-primary/60">
         <div className="flex items-start justify-between gap-3 mb-2">
-          <h3 className="text-base font-medium leading-snug text-foreground">
-            {r.title}
+          <h3 className="text-base font-medium leading-snug text-foreground flex items-start gap-1.5">
+            {r.is_favorite && (
+              <Star
+                aria-label="Favorite"
+                className="w-3.5 h-3.5 shrink-0 mt-1 text-foreground"
+                fill="currentColor"
+                strokeWidth={1.75}
+              />
+            )}
+            <span className="min-w-0">{r.title}</span>
           </h3>
           {showCoverage && r.total_count > 0 && (
             <CoveragePill
