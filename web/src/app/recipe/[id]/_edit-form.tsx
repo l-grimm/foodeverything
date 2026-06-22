@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { IngredientCategory, Recipe, RecipeIngredient } from "@/lib/types";
 import { deleteRecipe, updateRecipe, type IngredientEditDraft } from "./actions";
@@ -321,17 +322,27 @@ export function RecipeEditForm({
           </div>
         </header>
 
-        {tags.length > 0 && (
+        {tags.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            No tags yet. Add one below.
+          </p>
+        ) : (
           <div className="flex flex-wrap gap-1.5">
             {tags.map((t) => (
-              <button
+              <span
                 key={t}
-                type="button"
-                onClick={() => removeTag(t)}
-                className="rounded-full border border-primary text-primary px-2.5 py-0.5 font-mono text-[0.7rem] uppercase tracking-wider hover:bg-destructive/10 hover:text-destructive hover:border-destructive transition"
+                className="inline-flex items-center gap-1 rounded-full border border-primary text-primary pl-2.5 pr-1 py-0.5 font-mono text-[0.7rem] uppercase tracking-wider"
               >
-                {t} ×
-              </button>
+                <span>{t}</span>
+                <button
+                  type="button"
+                  onClick={() => removeTag(t)}
+                  aria-label={`Remove ${t}`}
+                  className="rounded-full p-0.5 text-primary/70 hover:bg-destructive/15 hover:text-destructive transition"
+                >
+                  <X className="w-3 h-3" strokeWidth={2.5} />
+                </button>
+              </span>
             ))}
           </div>
         )}
