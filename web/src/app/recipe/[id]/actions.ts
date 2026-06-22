@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase";
-import type { IngredientCategory } from "@/lib/types";
+import type { ExtractionConfidence, IngredientCategory } from "@/lib/types";
 
 const CATEGORIES: IngredientCategory[] = [
   "produce",
@@ -29,6 +29,10 @@ export type UpdateRecipePayload = {
   tags: string[];
   instructions: string[];
   ingredients: IngredientEditDraft[];
+  // Edit-form's "review" chip removes the needs_review status. Optional
+  // — only the recipes that started with needs_review surface the chip,
+  // so most saves leave this null and we skip updating the column.
+  extractionConfidence?: ExtractionConfidence | null;
 };
 
 function normalizeCategory(c: IngredientCategory | null): IngredientCategory | null {
@@ -78,13 +82,17 @@ export async function updateRecipe(id: string, payload: UpdateRecipePayload) {
     .filter((ing) => ing.name.length > 0);
 
   // 1. Update the recipe row itself.
+  const recipeUpdate: Record<string, unknown> = {
+    title,
+    tags: tags.length > 0 ? tags : null,
+    instructions: instructions.length > 0 ? instructions : null,
+  };
+  if (payload.extractionConfidence !== undefined) {
+    recipeUpdate.extraction_confidence = payload.extractionConfidence;
+  }
   const { error: recipeErr } = await supabaseAdmin
     .from("recipes")
-    .update({
-      title,
-      tags: tags.length > 0 ? tags : null,
-      instructions: instructions.length > 0 ? instructions : null,
-    })
+    .update(recipeUpdate)
     .eq("id", id);
   if (recipeErr) throw recipeErr;
 

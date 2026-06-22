@@ -63,6 +63,11 @@ export function RecipeEditForm({
   const [title, setTitle] = useState(recipe.title);
   const [tags, setTags] = useState<string[]>(recipe.tags ?? []);
   const [tagDraft, setTagDraft] = useState("");
+  // Only show the "review" chip if the recipe came in flagged. Tapping
+  // × on it marks the recipe as reviewed (flips to "high" on save).
+  const [needsReview, setNeedsReview] = useState(
+    recipe.extraction_confidence === "needs_review",
+  );
   const [instructions, setInstructions] = useState<string[]>(
     recipe.instructions && recipe.instructions.length > 0
       ? recipe.instructions
@@ -127,6 +132,12 @@ export function RecipeEditForm({
             prep_note: r.prep_note,
             category: r.category,
           })),
+          // Only send the column update if the user actually toggled the
+          // review chip; otherwise leave the existing value untouched.
+          extractionConfidence:
+            recipe.extraction_confidence === "needs_review" && !needsReview
+              ? "high"
+              : undefined,
         });
         onSaved();
       } catch (e) {
@@ -322,12 +333,28 @@ export function RecipeEditForm({
           </div>
         </header>
 
-        {tags.length === 0 ? (
+        {tags.length === 0 && !needsReview ? (
           <p className="text-sm text-muted-foreground">
             No tags yet. Add one below.
           </p>
         ) : (
           <div className="flex flex-wrap gap-1.5">
+            {needsReview && (
+              <span
+                key="__needs_review"
+                className="inline-flex items-center gap-1 rounded-full border border-destructive text-destructive pl-2.5 pr-1 py-0.5 font-mono text-[0.7rem] uppercase tracking-wider"
+              >
+                <span>review</span>
+                <button
+                  type="button"
+                  onClick={() => setNeedsReview(false)}
+                  aria-label="Mark as reviewed"
+                  className="rounded-full p-0.5 text-destructive/70 hover:bg-destructive/15 hover:text-destructive transition"
+                >
+                  <X className="w-3 h-3" strokeWidth={2.5} />
+                </button>
+              </span>
+            )}
             {tags.map((t) => (
               <span
                 key={t}
