@@ -5,6 +5,12 @@ description = "Recipe ingestion pipeline writing to Supabase."
 requires-python = ">=3.11"
 dependencies = [
     "beautifulsoup4>=4.12",
+    # Brotli decompression for requests/urllib3. Our BROWSER_HEADERS
+    # advertise "br" in Accept-Encoding; without this package the
+    # server (e.g. Substack on some subdomains) sends a Brotli body
+    # and requests returns raw compressed bytes as text → 0 chars of
+    # article text and a confusing "page has no JSON-LD recipe" error.
+    "brotli>=1.1",
     "fastapi>=0.115",
     "openai>=1.40",
     "pillow>=10.0",
