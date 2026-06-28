@@ -64,6 +64,11 @@ export type RecipeWithCoverage = Recipe & {
   // home-page pill uses this to show the specific ingredient when there's
   // exactly one gap.
   missing_names: string[];
+  // Pre-lowercased "title + ingredient names" blob the home page uses to
+  // filter recipes against the search box client-side. Populated in
+  // page.tsx via getRecipeSearchIndex(). Optional because not every code
+  // path that constructs a RecipeWithCoverage hydrates this field.
+  search_text?: string;
 };
 
 export type IngredientWithPantry = RecipeIngredient & {

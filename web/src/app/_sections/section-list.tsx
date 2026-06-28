@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { RecipeCard } from "../_recipe-card";
+import { useSearchQuery, filterBySearchQuery } from "../_search/search-context";
 import type { RecipeWithCoverage } from "@/lib/types";
 
 const INITIAL = 9;
@@ -15,9 +16,11 @@ export function SectionList({
   recipes: RecipeWithCoverage[];
   showCoverage: boolean;
 }) {
+  const { query } = useSearchQuery();
+  const filtered = filterBySearchQuery(recipes, query);
   const [visible, setVisible] = useState(INITIAL);
-  const shown = recipes.slice(0, visible);
-  const remaining = recipes.length - shown.length;
+  const shown = filtered.slice(0, visible);
+  const remaining = filtered.length - shown.length;
 
   return (
     <div className="space-y-3">

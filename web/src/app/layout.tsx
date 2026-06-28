@@ -4,6 +4,7 @@ import localFont from "next/font/local";
 import { Bowlby_One, Geist_Mono } from "next/font/google";
 import { Suspense } from "react";
 import { SearchBar } from "./_search/search-bar";
+import { SearchProvider } from "./_search/search-context";
 import { HeaderAddButton } from "./_header/add-button";
 import "./globals.css";
 
@@ -49,29 +50,34 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       className={`${generalSans.variable} ${bowlbyOne.variable} ${geistMono.variable} antialiased`}
     >
       <body className="bg-background text-foreground min-h-screen font-sans">
-        {/* Solid bg (no transparency / backdrop-blur) so the sticky region
-            doesn't visually wobble during iOS rubber-band scroll. */}
-        <header className="sticky top-0 z-40 border-b border-border bg-background">
-          <div className="mx-auto max-w-5xl px-4 py-3 flex items-center justify-between gap-3">
-            <Link
-              href="/"
-              className="font-display tracking-tight text-foreground"
-            >
-              <span className="text-xl sm:text-2xl leading-none uppercase">
-                Food Everything
-              </span>
-            </Link>
-            <Suspense fallback={null}>
-              <HeaderAddButton />
-            </Suspense>
-          </div>
-          <div className="mx-auto max-w-5xl px-4 pb-3">
-            <Suspense fallback={null}>
-              <SearchBar />
-            </Suspense>
-          </div>
-        </header>
-        <main className="mx-auto max-w-5xl px-4 py-6">{children}</main>
+        {/* SearchProvider lives outside the sticky header so SectionList /
+            RecentStrip in <main> can subscribe to the same context as the
+            SearchBar in the header. */}
+        <SearchProvider>
+          {/* Solid bg (no transparency / backdrop-blur) so the sticky region
+              doesn't visually wobble during iOS rubber-band scroll. */}
+          <header className="sticky top-0 z-40 border-b border-border bg-background">
+            <div className="mx-auto max-w-5xl px-4 py-3 flex items-center justify-between gap-3">
+              <Link
+                href="/"
+                className="font-display tracking-tight text-foreground"
+              >
+                <span className="text-xl sm:text-2xl leading-none uppercase">
+                  Food Everything
+                </span>
+              </Link>
+              <Suspense fallback={null}>
+                <HeaderAddButton />
+              </Suspense>
+            </div>
+            <div className="mx-auto max-w-5xl px-4 pb-3">
+              <Suspense fallback={null}>
+                <SearchBar />
+              </Suspense>
+            </div>
+          </header>
+          <main className="mx-auto max-w-5xl px-4 py-6">{children}</main>
+        </SearchProvider>
       </body>
     </html>
   );

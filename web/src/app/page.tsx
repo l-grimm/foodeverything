@@ -1,4 +1,10 @@
-import { listRecipesForSection, getFilterFacets, type SectionTab } from "@/lib/queries";
+import {
+  listRecipesForSection,
+  getFilterFacets,
+  getRecipeSearchIndex,
+  type SectionTab,
+} from "@/lib/queries";
+import type { RecipeWithCoverage } from "@/lib/types";
 import { FilterBar } from "./_filter-bar/filter-bar";
 import { ActiveFilters } from "./_filter-bar/active-filters";
 import { SectionList } from "./_sections/section-list";
@@ -24,7 +30,6 @@ export default async function Home({
 }) {
   const sp = await searchParams;
   const filters = {
-    q: sp.q || undefined,
     family: sp.family === "1",
     favorite: sp.favorite === "1",
     course: multi(sp, "course"),
@@ -42,16 +47,28 @@ export default async function Home({
   const cookTab = parseTab(sp.cookTab);
   const treatsTab = parseTab(sp.treatsTab);
 
-  const [cookNow, recent, treats, facets] = await Promise.all([
+  const [cookNow, recent, treats, facets, searchIndex] = await Promise.all([
     listRecipesForSection("cookNow", cookTab, filters),
     listRecipesForSection("recent", "seasonal", filters), // tab unused for recent
     listRecipesForSection("treats", treatsTab, filters),
     getFilterFacets(),
+    getRecipeSearchIndex(),
   ]);
+
+  // Attach the precomputed search blob ("title + ingredient names",
+  // lowercased) to each recipe so the client-side SearchBar can do
+  // instant substring filtering against it.
+  const withSearch = (recipes: RecipeWithCoverage[]): RecipeWithCoverage[] =>
+    recipes.map((r) => ({
+      ...r,
+      search_text: searchIndex.get(r.id) ?? r.title.toLowerCase(),
+    }));
+  cookNow.recipes = withSearch(cookNow.recipes);
+  recent.recipes = withSearch(recent.recipes);
+  treats.recipes = withSearch(treats.recipes);
 
   const hasPantry = cookNow.hasPantry;
   const hasAnyFilter =
-    !!filters.q ||
     filters.course.length +
       filters.season.length +
       filters.cuisine.length +

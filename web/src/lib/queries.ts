@@ -12,9 +12,11 @@ import type {
 } from "./types";
 
 // All filter fields are arrays so the UI can do multi-select (spring AND
-// summer for shoulder months, e.g.). q stays a scalar — search is one box.
+// summer for shoulder months, e.g.). Search query is NOT in here — it
+// lives in client state via [[search-context]] and filters client-side
+// against the precomputed search_text on each recipe (see
+// getRecipeSearchIndex).
 export type RecipeFilters = {
-  q?: string;
   family?: boolean;
   favorite?: boolean;
   course?: string[];
@@ -226,9 +228,6 @@ type RecipeQuery = ReturnType<typeof supabaseAdmin.from<"recipes", never>>["sele
 
 function applyFilters(query: RecipeQuery, filters: RecipeFilters): RecipeQuery {
   let q = query;
-  // filters.q is intentionally NOT handled here — search matches title OR
-  // ingredient name, so the q filter is pre-resolved to an id set in
-  // listRecipesForSection and applied separately via .in("id", ids).
   if (filters.family) q = q.eq("is_family_recipe", true);
   if (filters.favorite) q = q.eq("is_favorite", true);
   if (filters.course?.length) q = q.in("course", filters.course);
@@ -241,38 +240,38 @@ function applyFilters(query: RecipeQuery, filters: RecipeFilters): RecipeQuery {
   return q;
 }
 
-// UUID that can never appear in recipes.id. Used to force an empty result
-// set when the search query matched zero recipes via either title or
-// ingredient — cleaner than threading an early-return through the rest of
-// listRecipesForSection.
-const IMPOSSIBLE_RECIPE_ID = "00000000-0000-0000-0000-000000000000";
-
-// Hard cap on how many ids we'll feed into the downstream `id=in.(…)`
-// filter. Each UUID + comma + URL encoding is ~40 chars, and PostgREST
-// + Vercel + the proxy chain together start rejecting requests around
-// 4–8KB of URL. 100 ids keeps the URL well under that even with other
-// filters stacked on top.
-const MAX_SEARCH_IDS = 100;
-
-async function fetchRecipeIdsByQuery(q: string): Promise<string[]> {
-  const needle = `%${q}%`;
-  const [titleRes, ingRes] = await Promise.all([
-    supabaseAdmin.from("recipes").select("id").ilike("title", needle).limit(MAX_SEARCH_IDS),
-    supabaseAdmin
-      .from("recipe_ingredients")
-      .select("recipe_id")
-      .ilike("name", needle)
-      .limit(MAX_SEARCH_IDS * 4), // ingredients are many-to-one with recipes
+// Pre-builds a lookup table of "what each recipe is searchable as" —
+// lowercased title + space-separated ingredient names. The home page
+// fetches this once per request and attaches the matching string to
+// each RecipeWithCoverage as `search_text`, so the client-side
+// SearchBar can substring-match without any further server round trips.
+//
+// Why client-side filtering: at ~hundreds of recipes the entire index
+// is a few kilobytes; sending it down lets keystroke-as-you-type be
+// instant, avoids the PostgREST URL-length issues we hit trying to
+// pass id-lists through `?id=in.(…)`, and removes a whole class of
+// latency from the search experience.
+export async function getRecipeSearchIndex(): Promise<Map<string, string>> {
+  const [recipesRes, ingredientsRes] = await Promise.all([
+    supabaseAdmin.from("recipes").select("id, title").limit(5000),
+    supabaseAdmin.from("recipe_ingredients").select("recipe_id, name").limit(100000),
   ]);
-  const ids = new Set<string>();
-  for (const r of (titleRes.data ?? []) as { id: string }[]) ids.add(r.id);
-  for (const r of (ingRes.data ?? []) as { recipe_id: string | null }[]) {
-    if (r.recipe_id) ids.add(r.recipe_id);
+  const ingByRecipe = new Map<string, string[]>();
+  for (const ing of (ingredientsRes.data ?? []) as {
+    recipe_id: string | null;
+    name: string | null;
+  }[]) {
+    if (!ing.recipe_id || !ing.name) continue;
+    const list = ingByRecipe.get(ing.recipe_id);
+    if (list) list.push(ing.name);
+    else ingByRecipe.set(ing.recipe_id, [ing.name]);
   }
-  // Cap merged set. Past 100 the URL filter starts producing 400s, and
-  // a search that matched more than 100 recipes is too vague to be
-  // useful anyway — the user can keep typing to narrow.
-  return [...ids].slice(0, MAX_SEARCH_IDS);
+  const index = new Map<string, string>();
+  for (const r of (recipesRes.data ?? []) as { id: string; title: string | null }[]) {
+    const ingredients = ingByRecipe.get(r.id) ?? [];
+    index.set(r.id, [r.title ?? "", ...ingredients].join(" ").toLowerCase());
+  }
+  return index;
 }
 
 export async function listRecipesForSection(
@@ -283,24 +282,11 @@ export async function listRecipesForSection(
   const pageSize = filters.pageSize ?? 24;
   const page = filters.page ?? 1;
 
-  // Search matches title OR any ingredient name. Pre-resolve to an id set
-  // so the rest of the filter chain stays a single supabase query.
-  // Single-character queries skip the lookup — they'd match nearly every
-  // ingredient row, producing thousands of ids that overflow PostgREST's
-  // URL length limit (the live-search debounce makes this the hot path).
-  let matchingIds: string[] | undefined;
-  const trimmedQ = filters.q?.trim() ?? "";
-  if (trimmedQ.length >= 2) {
-    const ids = await fetchRecipeIdsByQuery(trimmedQ);
-    matchingIds = ids.length > 0 ? ids : [IMPOSSIBLE_RECIPE_ID];
-  }
-
   let query = supabaseAdmin
     .from("recipes")
     .select("*", { count: "exact" })
     .limit(5000) as unknown as RecipeQuery;
   query = applyFilters(query, filters);
-  if (matchingIds) query = query.in("id", matchingIds);
 
   if (section === "cookNow") {
     // Only override course with the main-courses set when the user hasn't
