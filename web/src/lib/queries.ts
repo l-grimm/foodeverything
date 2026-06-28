@@ -247,22 +247,32 @@ function applyFilters(query: RecipeQuery, filters: RecipeFilters): RecipeQuery {
 // listRecipesForSection.
 const IMPOSSIBLE_RECIPE_ID = "00000000-0000-0000-0000-000000000000";
 
+// Hard cap on how many ids we'll feed into the downstream `id=in.(…)`
+// filter. Each UUID + comma + URL encoding is ~40 chars, and PostgREST
+// + Vercel + the proxy chain together start rejecting requests around
+// 4–8KB of URL. 100 ids keeps the URL well under that even with other
+// filters stacked on top.
+const MAX_SEARCH_IDS = 100;
+
 async function fetchRecipeIdsByQuery(q: string): Promise<string[]> {
   const needle = `%${q}%`;
   const [titleRes, ingRes] = await Promise.all([
-    supabaseAdmin.from("recipes").select("id").ilike("title", needle).limit(5000),
+    supabaseAdmin.from("recipes").select("id").ilike("title", needle).limit(MAX_SEARCH_IDS),
     supabaseAdmin
       .from("recipe_ingredients")
       .select("recipe_id")
       .ilike("name", needle)
-      .limit(20000),
+      .limit(MAX_SEARCH_IDS * 4), // ingredients are many-to-one with recipes
   ]);
   const ids = new Set<string>();
   for (const r of (titleRes.data ?? []) as { id: string }[]) ids.add(r.id);
   for (const r of (ingRes.data ?? []) as { recipe_id: string | null }[]) {
     if (r.recipe_id) ids.add(r.recipe_id);
   }
-  return [...ids];
+  // Cap merged set. Past 100 the URL filter starts producing 400s, and
+  // a search that matched more than 100 recipes is too vague to be
+  // useful anyway — the user can keep typing to narrow.
+  return [...ids].slice(0, MAX_SEARCH_IDS);
 }
 
 export async function listRecipesForSection(
@@ -275,9 +285,13 @@ export async function listRecipesForSection(
 
   // Search matches title OR any ingredient name. Pre-resolve to an id set
   // so the rest of the filter chain stays a single supabase query.
+  // Single-character queries skip the lookup — they'd match nearly every
+  // ingredient row, producing thousands of ids that overflow PostgREST's
+  // URL length limit (the live-search debounce makes this the hot path).
   let matchingIds: string[] | undefined;
-  if (filters.q) {
-    const ids = await fetchRecipeIdsByQuery(filters.q);
+  const trimmedQ = filters.q?.trim() ?? "";
+  if (trimmedQ.length >= 2) {
+    const ids = await fetchRecipeIdsByQuery(trimmedQ);
     matchingIds = ids.length > 0 ? ids : [IMPOSSIBLE_RECIPE_ID];
   }
 
