@@ -215,8 +215,8 @@ export async function setFavorite(id: string, value: boolean) {
 export async function reExtractRecipe(
   id: string,
 ): Promise<{ ok: true } | { error: string }> {
-  const baseUrl = process.env.WEBHOOK_BASE_URL;
-  const token = process.env.WEBHOOK_TOKEN;
+  const baseUrl = process.env.WEBHOOK_BASE_URL?.trim();
+  const token = process.env.WEBHOOK_TOKEN?.trim();
   if (!baseUrl || !token) return { error: "Backend not configured." };
 
   try {
