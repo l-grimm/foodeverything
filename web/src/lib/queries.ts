@@ -384,6 +384,7 @@ export async function listRecipesForSection(
 export type RecentPantryItem = {
   id: string;
   name: string;
+  category: string | null;
   added_at: string | null;
 };
 
@@ -392,7 +393,7 @@ export async function listRecentPantryItems(
 ): Promise<RecentPantryItem[]> {
   const { data } = await supabaseAdmin
     .from("pantry_items")
-    .select("id, name, added_at")
+    .select("id, name, category, added_at")
     .is("finished_at", null)
     .order("added_at", { ascending: false })
     .limit(limit);
