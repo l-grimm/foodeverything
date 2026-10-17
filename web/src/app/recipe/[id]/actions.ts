@@ -209,6 +209,42 @@ export async function setFavorite(id: string, value: boolean) {
   return { ok: true as const };
 }
 
+// Re-fetch the recipe from its source URL and overwrite LLM-extracted fields.
+// Preserves user-curated data (is_favorite, is_family_recipe, my_notes).
+// Calls the Fly.io backend which handles the HTTP fetch + GPT extraction.
+export async function reExtractRecipe(
+  id: string,
+): Promise<{ ok: true } | { error: string }> {
+  const baseUrl = process.env.WEBHOOK_BASE_URL;
+  const token = process.env.WEBHOOK_TOKEN;
+  if (!baseUrl || !token) return { error: "Backend not configured." };
+
+  try {
+    const res = await fetch(`${baseUrl}/webhook/re-extract`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ recipe_id: id }),
+    });
+    if (!res.ok) {
+      let detail = `Server error ${res.status}`;
+      try {
+        const body = await res.json();
+        if (body.detail) detail = String(body.detail);
+      } catch {}
+      return { error: detail };
+    }
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Network error" };
+  }
+
+  revalidatePath(`/recipe/${id}`);
+  revalidatePath("/");
+  return { ok: true };
+}
+
 // Hard-delete a recipe and (via FK CASCADE) all of its
 // recipe_ingredients. email_ingestions / airtable_imports / local_imports
 // have ON DELETE SET NULL so the ingest provenance rows survive with a

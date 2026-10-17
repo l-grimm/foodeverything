@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import type { Recipe, RecipeIngredient } from "@/lib/types";
 import { RecipeEditForm } from "./_edit-form";
 import { FavoriteButton } from "./_favorite-button";
+import { ReExtractButton } from "./_re-extract-button";
 
 // Thin client wrapper that decides whether to show the server-rendered
 // read view (passed as `children`) or the client-side edit form. Keeps
@@ -69,11 +70,17 @@ export function RecipeViewToggle({
     <>
       <div className="flex items-center justify-between gap-3 mb-6">
         <BackToRecipes />
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
           <FavoriteButton
             recipeId={recipe.id}
             initial={recipe.is_favorite === true}
           />
+          {recipe.source_url && recipe.source_platform !== "manual" && (
+            <ReExtractButton
+              recipeId={recipe.id}
+              onSuccess={() => router.refresh()}
+            />
+          )}
           <Button
             type="button"
             size="sm"
