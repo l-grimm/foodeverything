@@ -375,10 +375,7 @@ export async function listRecipesForSection(
     return dateScore(b) - dateScore(a);
   });
 
-  const from = (page - 1) * pageSize;
-  const paginated = enriched.slice(from, from + pageSize);
-
-  return { recipes: paginated, total: recipesRes.count ?? 0, hasPantry };
+  return { recipes: enriched, total: enriched.length, hasPantry };
 }
 
 export type RecentPantryItem = {

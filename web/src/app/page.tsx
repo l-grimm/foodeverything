@@ -11,8 +11,6 @@ import { RecentStrip } from "./_sections/recent-strip";
 import { RecentPantryStrip } from "./_pantry-widget/strip";
 import { HomeScrollRestorer } from "./_home-scroll-restorer";
 
-const PAGE_SIZE = 60;
-
 function multi(sp: Record<string, string | undefined>, key: string): string[] {
   return sp[key]?.split(",").filter(Boolean) ?? [];
 }
@@ -35,8 +33,6 @@ export default async function Home({
     author: multi(sp, "author"),
     needsReview: sp.needsReview === "1",
     seasonal: sp.seasonal === "1",
-    page: 1,
-    pageSize: PAGE_SIZE,
   };
 
   const [cookNow, recent, treats, facets, searchIndex] = await Promise.all([
