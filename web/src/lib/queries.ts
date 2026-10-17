@@ -30,6 +30,7 @@ export type RecipeFilters = {
   //   "No author" — matches author is null and not flagged family
   author?: string[];
   needsReview?: boolean;
+  seasonal?: boolean;
   page?: number;
   pageSize?: number;
 };
@@ -44,7 +45,6 @@ export type RecipeListResult = {
 };
 
 export type SectionKey = "cookNow" | "recent" | "treats";
-export type SectionTab = "seasonal" | "coverage";
 
 // Recently-added cutoff for the home-page section.
 const RECENT_DAYS = 14;
@@ -237,6 +237,8 @@ function applyFilters(query: RecipeQuery, filters: RecipeFilters): RecipeQuery {
   if (filters.platform?.length) q = q.in("source_platform", filters.platform);
   if (filters.tags?.length) q = q.overlaps("tags", filters.tags);
   if (filters.needsReview) q = q.eq("extraction_confidence", "needs_review");
+  if (filters.seasonal && !filters.season?.length)
+    q = q.in("season", currentSeasonWindow() as unknown as string[]);
   return q;
 }
 
@@ -276,7 +278,6 @@ export async function getRecipeSearchIndex(): Promise<Map<string, string>> {
 
 export async function listRecipesForSection(
   section: SectionKey,
-  tab: SectionTab,
   filters: RecipeFilters,
 ): Promise<RecipeListResult> {
   const pageSize = filters.pageSize ?? 24;
@@ -298,18 +299,6 @@ export async function listRecipesForSection(
     query = query.gte("created_at", since.toISOString());
   } else if (section === "treats") {
     if (!filters.course?.length) query = query.in("course", TREAT_COURSES);
-  }
-
-  // Seasonal tab on cookNow/treats: hard-filter to recipes whose season is
-  // in the current season window (which already includes overlapping
-  // shoulder months — "almost in season"). User-explicit season filter
-  // wins if set. Recent is chronological-only; tab is ignored there.
-  if (
-    (section === "cookNow" || section === "treats") &&
-    tab === "seasonal" &&
-    !filters.season?.length
-  ) {
-    query = query.in("season", currentSeasonWindow() as unknown as string[]);
   }
 
   const [recipesRes, coverageRes, pantryCountRes] = await Promise.all([
@@ -370,6 +359,7 @@ export async function listRecipesForSection(
   // mental model. Coverage desc stays as a tiebreak when missing counts
   // are equal. created_at desc is the final tiebreak. Recent section just
   // sorts by date.
+  const seasonWindow = new Set<string>(currentSeasonWindow());
   const dateScore = (r: RecipeWithCoverage): number =>
     r.created_at ? Date.parse(r.created_at) : 0;
   enriched.sort((a, b) => {
@@ -377,6 +367,9 @@ export async function listRecipesForSection(
       const aMissing = a.total_count - a.matched_count;
       const bMissing = b.total_count - b.matched_count;
       if (aMissing !== bMissing) return aMissing - bMissing;
+      const aSeasonal = a.season != null && seasonWindow.has(a.season);
+      const bSeasonal = b.season != null && seasonWindow.has(b.season);
+      if (aSeasonal !== bSeasonal) return aSeasonal ? -1 : 1;
       if (a.coverage !== b.coverage) return b.coverage - a.coverage;
     }
     return dateScore(b) - dateScore(a);

@@ -17,12 +17,12 @@ export type FilterFacets = {
 type FilterKey = "season" | "course" | "cuisine" | "holiday" | "tags" | "author";
 
 // Synthetic pills rendered in the Tags section that flip status-flag URL
-// params rather than a real tags[] value. Family and needs-review live on
-// their own recipes columns (is_family_recipe, extraction_confidence) but
-// the user thinks of them as tags, so we surface them here and route the
-// selection to the right URL param.
+// params rather than a real tags[] value. Family, needs-review, and seasonal
+// live on their own recipes columns but the user thinks of them as tags, so
+// we surface them here and route the selection to the right URL param.
 const NEEDS_REVIEW_PILL = "needs-review";
 const FAMILY_PILL = "family";
+const SEASONAL_PILL = "seasonal";
 
 // IMPORTANT: spread `...rest` onto Button — base-ui's Sheet/Dialog Trigger
 // clones the element passed via `render` and merges in onClick, aria-*, ref,
@@ -78,11 +78,13 @@ export function FilterBar({ facets }: { facets: FilterFacets }) {
 
   const needsReviewActive = searchParams.get("needsReview") === "1";
   const familyActive = searchParams.get("family") === "1";
+  const seasonalActive = searchParams.get("seasonal") === "1";
   const moreCount =
     selected("holiday").length +
     selected("tags").length +
     (needsReviewActive ? 1 : 0) +
-    (familyActive ? 1 : 0);
+    (familyActive ? 1 : 0) +
+    (seasonalActive ? 1 : 0);
 
   // Split the tags facet into diet (curated allowlist) and everything-else.
   // Diet tags get their own section under "More" so users see them grouped
@@ -142,9 +144,14 @@ export function FilterBar({ facets }: { facets: FilterFacets }) {
           {
             key: "tags",
             title: "Tags",
-            // family + review pinned first — status flags, not content tags.
-            // Rendered in green / red to mirror the same chips on recipe cards.
+            // seasonal + family + review pinned first — status flags, not content tags.
+            // Rendered in green / green / red to mirror chips on recipe cards.
             options: [
+              {
+                value: SEASONAL_PILL,
+                label: "in season",
+                variant: "family",
+              } satisfies PillOption,
               {
                 value: FAMILY_PILL,
                 label: "family",
@@ -163,6 +170,7 @@ export function FilterBar({ facets }: { facets: FilterFacets }) {
           holiday: selected("holiday"),
           diet: dietSelected,
           tags: [
+            ...(seasonalActive ? [SEASONAL_PILL] : []),
             ...(familyActive ? [FAMILY_PILL] : []),
             ...(needsReviewActive ? [NEEDS_REVIEW_PILL] : []),
             ...otherTagsSelected,
@@ -173,10 +181,11 @@ export function FilterBar({ facets }: { facets: FilterFacets }) {
           const pickedTags = picked.tags ?? [];
           const wantsNeedsReview = pickedTags.includes(NEEDS_REVIEW_PILL);
           const wantsFamily = pickedTags.includes(FAMILY_PILL);
+          const wantsSeasonal = pickedTags.includes(SEASONAL_PILL);
           const realTags = [
             ...(picked.diet ?? []),
             ...pickedTags.filter(
-              (t) => t !== NEEDS_REVIEW_PILL && t !== FAMILY_PILL,
+              (t) => t !== NEEDS_REVIEW_PILL && t !== FAMILY_PILL && t !== SEASONAL_PILL,
             ),
           ];
           const next = new URLSearchParams(searchParams.toString());
@@ -188,6 +197,8 @@ export function FilterBar({ facets }: { facets: FilterFacets }) {
           else next.delete("needsReview");
           if (wantsFamily) next.set("family", "1");
           else next.delete("family");
+          if (wantsSeasonal) next.set("seasonal", "1");
+          else next.delete("seasonal");
           next.delete("page");
           const qs = next.toString();
           router.push(qs ? `${pathname}?${qs}` : pathname);

@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { Star } from "lucide-react";
+import { Star, Leaf } from "lucide-react";
 import type { RecipeWithCoverage } from "@/lib/types";
+import { currentSeasonWindow } from "@/lib/pill-catalogs";
 
 // Pure presentational recipe card. Roux-style: dark surface, cream
 // type, blue accent pill for coverage, mono micro-labels for metadata.
@@ -11,6 +12,7 @@ export function RecipeCard({
   recipe: RecipeWithCoverage;
   showCoverage: boolean;
 }) {
+  const isInSeason = r.season != null && currentSeasonWindow().includes(r.season);
   return (
     <Link href={`/recipe/${r.id}`} className="block group">
       <article className="h-full rounded-md border border-border bg-card p-4 transition group-hover:border-primary/60">
@@ -25,6 +27,12 @@ export function RecipeCard({
               />
             )}
             <span className="min-w-0">{r.title}</span>
+            {isInSeason && (
+              <Leaf
+                aria-label="In season"
+                className="w-3.5 h-3.5 shrink-0 mt-1 text-secondary"
+              />
+            )}
           </h3>
           {showCoverage && r.total_count > 0 && (
             <CoveragePill

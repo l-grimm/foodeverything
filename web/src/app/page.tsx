@@ -2,13 +2,11 @@ import {
   listRecipesForSection,
   getFilterFacets,
   getRecipeSearchIndex,
-  type SectionTab,
 } from "@/lib/queries";
 import type { RecipeWithCoverage } from "@/lib/types";
 import { FilterBar } from "./_filter-bar/filter-bar";
 import { ActiveFilters } from "./_filter-bar/active-filters";
 import { SectionList } from "./_sections/section-list";
-import { SectionTabs } from "./_sections/section-tabs";
 import { RecentStrip } from "./_sections/recent-strip";
 import { RecentPantryStrip } from "./_pantry-widget/strip";
 import { HomeScrollRestorer } from "./_home-scroll-restorer";
@@ -17,10 +15,6 @@ const PAGE_SIZE = 60;
 
 function multi(sp: Record<string, string | undefined>, key: string): string[] {
   return sp[key]?.split(",").filter(Boolean) ?? [];
-}
-
-function parseTab(raw: string | undefined): SectionTab {
-  return raw === "coverage" ? "coverage" : "seasonal";
 }
 
 export default async function Home({
@@ -40,17 +34,15 @@ export default async function Home({
     tags: multi(sp, "tags"),
     author: multi(sp, "author"),
     needsReview: sp.needsReview === "1",
+    seasonal: sp.seasonal === "1",
     page: 1,
     pageSize: PAGE_SIZE,
   };
 
-  const cookTab = parseTab(sp.cookTab);
-  const treatsTab = parseTab(sp.treatsTab);
-
   const [cookNow, recent, treats, facets, searchIndex] = await Promise.all([
-    listRecipesForSection("cookNow", cookTab, filters),
-    listRecipesForSection("recent", "seasonal", filters), // tab unused for recent
-    listRecipesForSection("treats", treatsTab, filters),
+    listRecipesForSection("cookNow", filters),
+    listRecipesForSection("recent", filters),
+    listRecipesForSection("treats", filters),
     getFilterFacets(),
     getRecipeSearchIndex(),
   ]);
@@ -75,7 +67,10 @@ export default async function Home({
       filters.holiday.length +
       filters.tags.length +
       filters.author.length >
-      0;
+      0 ||
+    filters.seasonal ||
+    filters.needsReview ||
+    filters.family;
 
   return (
     <div className="space-y-8">
@@ -95,11 +90,10 @@ export default async function Home({
         label="What to cook now"
         subtitle="Breakfast, lunch, dinner"
       >
-        <SectionTabs current={cookTab} paramKey="cookTab" sp={sp} />
         {cookNow.recipes.length > 0 ? (
           <SectionList recipes={cookNow.recipes} showCoverage={hasPantry} />
         ) : (
-          <EmptyTab tab={cookTab} />
+          <EmptySection />
         )}
       </SectionFrame>
 
@@ -107,11 +101,10 @@ export default async function Home({
         label="Treats & extras"
         subtitle="Desserts, snacks, drinks, sides, appetizers"
       >
-        <SectionTabs current={treatsTab} paramKey="treatsTab" sp={sp} />
         {treats.recipes.length > 0 ? (
           <SectionList recipes={treats.recipes} showCoverage={hasPantry} />
         ) : (
-          <EmptyTab tab={treatsTab} />
+          <EmptySection />
         )}
       </SectionFrame>
 
@@ -162,14 +155,10 @@ function SectionFrame({
   );
 }
 
-function EmptyTab({ tab }: { tab: SectionTab }) {
+function EmptySection() {
   return (
     <div className="rounded-md border border-dashed border-border p-6 text-center">
-      <p className="text-sm text-muted-foreground">
-        {tab === "seasonal"
-          ? "Nothing in season here right now — try By coverage."
-          : "Nothing to show. Adjust filters above."}
-      </p>
+      <p className="text-sm text-muted-foreground">Nothing to show. Adjust filters above.</p>
     </div>
   );
 }
