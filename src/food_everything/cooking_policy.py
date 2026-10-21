@@ -29,6 +29,57 @@ ALLERGENS = re.compile(
 )
 
 
+def spoken_command(text: str) -> str:
+    """Normalize short conversational commands without matching inside questions."""
+    text = re.sub(r"[^\w\s']", " ", text.lower().replace("’", "'"))
+    return " ".join(text.split()).strip()
+
+
+READY_WORDS = {
+    "okay",
+    "ok",
+    "next",
+    "next step",
+    "ready",
+    "i'm ready",
+    "i am ready",
+    "done",
+    "all done",
+    "go ahead",
+    "let's go",
+    "continue",
+    "all set",
+    "okay next",
+    "ok next",
+    "yes next",
+    "let's continue",
+}
+PAUSE_WORDS = {
+    "pause",
+    "pause cooking",
+    "stop",
+    "stop cooking",
+    "hold on",
+    "wait",
+    "wait a moment",
+    "give me a minute",
+    "let's pause",
+}
+RESUME_WORDS = {
+    "resume",
+    "resume cooking",
+    "let's resume",
+    "continue",
+    "i'm back",
+    "i am back",
+    "ready",
+    "i'm ready",
+    "okay",
+    "ok",
+}
+REPEAT_WORDS = {"repeat", "repeat that", "repeat the step", "say that again", "again"}
+
+
 def conflicts(text: str) -> list[str]:
     return sorted({m.group(0).lower() for m in ALLERGENS.finditer(text)})
 

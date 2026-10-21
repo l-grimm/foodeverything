@@ -41,6 +41,17 @@ test("same-origin requests work when Next's internal hostname differs", async ()
   assert.equal(upstreamCalls[0][1].headers.Authorization, "Bearer test-backend-secret");
   assert.doesNotMatch(await response.text(), /test-backend-secret/);
 });
+test("voice negotiation uses the authenticated fixed backend route and never returns its credential", async () => {
+  globalThis.fetch = async (...args) => {
+    upstreamCalls.push(args);
+    return Response.json({ sdp: "fixture-answer" });
+  };
+  const response = await POST(request({}, JSON.stringify({ token: "signed-session", sdp: "fixture-offer" })), context("connect"));
+  assert.equal(response.status, 200);
+  assert.equal(upstreamCalls[0][0], "http://fixture.invalid/voice/connect");
+  assert.equal(upstreamCalls[0][1].headers.Authorization, "Bearer test-backend-secret");
+  assert.deepEqual(await response.json(), { sdp: "fixture-answer" });
+});
 test("cross-origin and malformed origins never reach the paid backend", async () => {
   for (const origin of ["https://attacker.invalid", "null", "not a URL"]) {
     assert.equal((await POST(request({ origin }), context("turn"))).status, 403);

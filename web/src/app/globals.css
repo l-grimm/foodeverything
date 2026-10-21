@@ -145,16 +145,6 @@
   color: var(--foreground);
 }
 .cooking-dialog::backdrop { background: var(--background); }
-.cooking-pause {
-  display: grid;
-  place-items: center;
-  width: 96px;
-  height: 96px;
-  border-radius: 50%;
-  background: var(--primary);
-  color: var(--primary-foreground);
-  cursor: pointer;
-}
 .cooking-icon-button {
   display: grid;
   place-items: center;
@@ -165,7 +155,7 @@
 }
 .cooking-icon-button:disabled { opacity: 0.4; cursor: default; }
 .cooking-icon-button:hover:not(:disabled) { background: var(--accent); }
-.cooking-pause:focus-visible, .cooking-icon-button:focus-visible {
+.cooking-icon-button:focus-visible {
   outline: 3px solid var(--primary);
   outline-offset: 5px;
 }

@@ -74,32 +74,3 @@ export class CookingAudioPlayer {
     this.source = null;
   }
 }
-
-/** Conservative energy-based endpointing: do not submit silence or a clatter.
- * The backend still transcribes one complete turn at a time.
- */
-export class CookingTurnDetector {
-  private voicedMs = 0;
-  private lastVoiceAt: number | null = null;
-  private lastSampleAt: number | null = null;
-  private noiseFloor = 0.004;
-
-  get hasSpeech() { return this.voicedMs >= 160; }
-
-  sample(rms: number, now: number) {
-    const elapsed = this.lastSampleAt === null ? 0 : Math.min(100, now - this.lastSampleAt);
-    this.lastSampleAt = now;
-    const threshold = Math.max(0.012, this.noiseFloor * 3);
-    if (rms > threshold) {
-      this.voicedMs += elapsed;
-      this.lastVoiceAt = now;
-    } else {
-      if (!this.hasSpeech && this.lastVoiceAt !== null && now - this.lastVoiceAt > 300) {
-        this.voicedMs = 0;
-        this.lastVoiceAt = null;
-      }
-      if (this.lastVoiceAt === null) this.noiseFloor = this.noiseFloor * 0.98 + rms * 0.02;
-    }
-    return this.hasSpeech && this.lastVoiceAt !== null && now - this.lastVoiceAt >= 1400;
-  }
-}

@@ -1,8 +1,6 @@
 "use client";
 
-// Local-only browser fixture. It is outside app/, so it is never a production
-// route. Exercises the real component and browser audio/MediaRecorder APIs with
-// synthetic input and mocked providers; it never accesses the physical mic.
+// Local-only fixture: no physical microphone, provider calls, or database access.
 import { useEffect, useState } from "react";
 import { CookingAssistant } from "../../src/app/recipe/[id]/_cooking-assistant";
 
@@ -26,62 +24,80 @@ export default function HandsfreeFixture() {
   useEffect(() => {
     const originalFetch = window.fetch;
     const originalMic = navigator.mediaDevices.getUserMedia;
+    const originalPeer = window.RTCPeerConnection;
     const input = new AudioContext();
     const oscillator = input.createOscillator();
     const gain = input.createGain();
     const destination = input.createMediaStreamDestination();
-    gain.gain.value = 0;
+    gain.gain.value = 0.015;
     oscillator.frequency.value = 180;
     oscillator.connect(gain); gain.connect(destination); oscillator.start();
-    let listens = 0, recordings = 0, replies = 0, messages = 0, uploadedBytes = 0;
-    let lastStatus = "";
-    const update = () => setReport(JSON.stringify({ listens, recordings, replies, messages, uploadedBytes, micEnded: destination.stream.getAudioTracks()[0].readyState === "ended" }));
-    navigator.mediaDevices.getUserMedia = async () => {
-      await input.resume();
-      return destination.stream;
-    };
+    const track = destination.stream.getAudioTracks()[0];
+    const turns: string[] = [];
+    let connections = 0, replies = 0, microphones = 0, serial = 0, lastToken = "";
+    let tokensInOrder = true, continuousMic = true;
+    let channel: { onopen: (() => void) | null; onmessage: ((event: { data: string }) => void) | null; close: () => void } | null = null;
+    const update = () => setReport(JSON.stringify({ turns, connections, microphones, replies, tokensInOrder, continuousMic, micEnded: track.readyState === "ended" }));
+    navigator.mediaDevices.getUserMedia = async () => { microphones++; await input.resume(); return destination.stream; };
+    class FixturePeer {
+      localDescription: { type: string; sdp: string } | null = null;
+      connectionState = "connected";
+      onconnectionstatechange = null;
+      addTrack(added: MediaStreamTrack) { continuousMic &&= added === track && track.enabled; }
+      createDataChannel() { channel = { onopen: null, onmessage: null, close() {} }; return channel; }
+      async createOffer() { return { type: "offer", sdp: "v=0\r\nm=audio fixture-offer" }; }
+      async setLocalDescription(offer: { type: string; sdp: string }) { this.localDescription = offer; }
+      async setRemoteDescription() { channel?.onopen?.(); }
+      close() {}
+    }
+    window.RTCPeerConnection = FixturePeer as unknown as typeof RTCPeerConnection;
     window.fetch = async (url, options) => {
       const path = String(url);
+      if (path.endsWith("/api/cooking/connect")) { connections++; update(); return Response.json({ sdp: "fixture-answer" }); }
       if (path.endsWith("/api/cooking/turn")) {
         const body = JSON.parse(String(options?.body));
-        if (body.action === "message") messages++;
+        if (body.action !== "start") tokensInOrder &&= body.token === lastToken;
+        turns.push(body.text || body.action);
+        const index = turns.length - 1;
+        const texts = ["Welcome! Any guest dietary restrictions?", "Do you have an oven and a dish?", "First, prepare the vegetables.", "Next, bake the vegetables.", "About twenty minutes. Tell me when you are ready.", "Of course. Say resume when you are ready.", "We are still baking the vegetables."];
+        lastToken = `fixture-${turns.length}`;
         update();
-        return Response.json({ token: "fixture", saved_token: "fixture", reply: messages ? "Equipment confirmed." : "Any guest dietary restrictions?", step: -1, total: 2, phase: messages ? "equipment" : "guests", pending: null, approved: [], paused: false, warning: "" });
+        return Response.json({ token: lastToken, saved_token: "fixture", reply: texts[index] ?? "Still here.", step: index < 2 ? -1 : index === 2 ? 0 : 1, total: 2, phase: index === 0 ? "guests" : index === 1 ? "equipment" : "cooking", pending: null, approved: [], paused: index === 5, warning: "" });
       }
       if (path.endsWith("/api/cooking/speech")) {
-        replies++; update();
+        replies++; continuousMic &&= track.enabled && track.readyState === "live"; update();
         return new Response(speechWav(), { headers: { "Content-Type": "audio/wav" } });
       }
-      if (path.endsWith("/api/cooking/transcribe")) {
-        const audio = (options?.body as FormData).get("audio") as Blob;
-        uploadedBytes += audio.size;
-        recordings++; update();
-        return Response.json({ text: recordings === 1 ? "No guest restrictions." : "I have an oven and a skillet." });
-      }
+      if (path.includes("/api/cooking/")) throw new Error("Unexpected provider operation in local fixture");
       return originalFetch(url, options);
     };
+    const script = ["No guest restrictions.", "Yes I have those tools.", "Okay.", "How long should it bake?", "Pause.", "Resume."];
+    let lastStatus = "";
+    const timers: ReturnType<typeof setTimeout>[] = [];
     const observer = new MutationObserver(() => {
       const status = document.querySelector('[role="status"]')?.textContent ?? "";
       if (status === lastStatus) return;
       lastStatus = status;
-      if (!status) { setTimeout(update, 0); return; }
-      if (!status.startsWith("Listening")) return;
-      listens++; update();
-      // Two complete hands-free turns, followed by silence. The oscillator
-      // drives the real MediaRecorder stream; no physical microphone is used.
-      if (listens <= 2) {
-        gain.gain.setValueAtTime(0.12, input.currentTime + 0.15);
-        gain.gain.setValueAtTime(0, input.currentTime + 0.95);
-      }
+      if (!status) { timers.push(setTimeout(update, 0)); return; }
+      if (status !== "I'm listening" && !status.startsWith("I'm here. Say resume")) return;
+      const text = script.shift();
+      if (!text) return;
+      timers.push(setTimeout(() => {
+        continuousMic &&= track.enabled && track.readyState === "live";
+        const id = String(++serial);
+        const emit = (type: string, transcript?: string) => channel?.onmessage?.({ data: JSON.stringify({ type, item_id: id, transcript }) });
+        emit("input_audio_buffer.speech_started");
+        emit("input_audio_buffer.committed");
+        emit("conversation.item.input_audio_transcription.completed", text);
+        update();
+      }, 150));
     });
     observer.observe(document.body, { subtree: true, childList: true, characterData: true });
-    // The fixture becomes usable only after the external browser APIs are mocked.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setReady(true);
     return () => {
-      window.fetch = originalFetch;
+      window.fetch = originalFetch; window.RTCPeerConnection = originalPeer;
       navigator.mediaDevices.getUserMedia = originalMic;
-      observer.disconnect();
+      observer.disconnect(); timers.forEach(clearTimeout);
       destination.stream.getTracks().forEach(track => track.stop());
       void input.close();
     };

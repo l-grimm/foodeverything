@@ -1,5 +1,5 @@
 // All provider credentials stay in the existing authenticated backend.
-const OPERATIONS = new Set(["turn", "transcribe", "speech"]);
+const OPERATIONS = new Set(["turn", "transcribe", "speech", "connect"]);
 export const runtime = "nodejs";
 export const maxDuration = 60;
 

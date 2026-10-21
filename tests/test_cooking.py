@@ -175,11 +175,17 @@ class TurnTests(unittest.TestCase):
         self.model.return_value = cooking.Decision(
             action="question", reply="What would you like to do?", proposal=None
         )
+        self.setup_patch = patch.object(cooking, "understand_setup")
+        self.setup = self.setup_patch.start()
+        self.setup.side_effect = lambda state, text, subject: cooking.SetupAnswer(
+            answered=True, answer=text, reply=""
+        )
 
     def tearDown(self):
         self.env.stop()
         self.db_patch.stop()
         self.model_patch.stop()
+        self.setup_patch.stop()
 
     def request(self, state, action="message", text="hello"):
         return self.api.handle_turn(
@@ -203,7 +209,8 @@ class TurnTests(unittest.TestCase):
         )
         result = self.api.handle_turn(request, SECRET)
         restored = verify(result["token"], SECRET)
-        self.assertEqual(result["reply"], self.api.OPENING)
+        self.assertEqual(result["reply"], self.api.welcome(RECIPE))
+        self.assertFalse(result["paused"])
         self.assertEqual(restored["approved"], [])
         self.assertEqual(len(restored["saved"]), 1)
         self.model.assert_not_called()
@@ -219,12 +226,12 @@ class TurnTests(unittest.TestCase):
         self.assertEqual(updated["phase"], "equipment")
         self.assertEqual(updated["step"], -1)
 
-    def test_ambiguous_yes_does_not_approve(self):
+    def test_ambiguous_okay_does_not_approve(self):
         state = initial()
         state["pending"] = validate_change(
             {"ingredient_id": "fruit", "replacement": "berries"}, INGREDIENTS
         )
-        result = self.request(state, text="yes")
+        result = self.request(state, text="okay")
         self.assertIsNotNone(result["pending"])
         self.assertEqual(result["approved"], [])
         self.model.assert_not_called()
@@ -251,7 +258,11 @@ class TurnTests(unittest.TestCase):
         self.assertEqual(set(saved), {"recipe", "version", "approved", "expires"})
 
     def test_explicit_spoken_and_button_approval_preserve_original_and_never_write_db(self):
-        for action, text in [("approve", ""), ("message", "Approve substitution.")]:
+        for action, text in [
+            ("approve", ""),
+            ("message", "Approve substitution."),
+            ("message", "Yes, please."),
+        ]:
             state = initial()
             state["pending"] = validate_change(
                 {"ingredient_id": "fruit", "replacement": "berries"}, INGREDIENTS
@@ -297,6 +308,66 @@ class TurnTests(unittest.TestCase):
         result = self.request(state, "repeat", "")
         self.assertEqual(result["step"], 1)
 
+    def test_conversation_waits_for_each_setup_answer_then_advances_one_step(self):
+        state = initial()
+        state.update(phase="guests", ingredients=[])
+        self.setup.side_effect = None
+        self.setup.return_value = self.api.SetupAnswer(
+            answered=False, answer="", reply="Does anyone have dietary restrictions?"
+        )
+        result = self.request(state, text="Okay")
+        state = verify(result["token"], SECRET)
+        self.assertEqual((state["phase"], state["step"]), ("guests", -1))
+        self.model.assert_not_called()
+        self.setup.return_value = self.api.SetupAnswer(answered=True, answer="none", reply="")
+        self.model.return_value = self.api.Decision(
+            action="question", reply="Do you have an oven and baking dish?", proposal=None
+        )
+        result = self.request(state, text="No restrictions")
+        state = verify(result["token"], SECRET)
+        self.assertEqual((state["phase"], state["step"]), ("equipment", -1))
+        self.assertIn("oven", result["reply"])
+        self.setup.return_value = self.api.SetupAnswer(
+            answered=False, answer="", reply="Do you have a dish you can bake in?"
+        )
+        result = self.request(state, text="What size dish?")
+        state = verify(result["token"], SECRET)
+        self.assertEqual((state["phase"], state["step"]), ("equipment", -1))
+        self.setup.return_value = self.api.SetupAnswer(
+            answered=True, answer="oven and dish", reply=""
+        )
+        self.model.return_value = self.api.Decision(
+            action="question", reply="Prepare the fruit. Tell me when you're ready.", proposal=None
+        )
+        result = self.request(state, text="Yes, I have those")
+        state = verify(result["token"], SECRET)
+        self.assertEqual((state["phase"], state["step"]), ("cooking", 0))
+        result = self.request(state, text="Okay!")
+        self.assertEqual(result["step"], 1)
+
+    def test_voice_pause_persists_and_resume_repeats_same_step(self):
+        state = initial()
+        state.update(ingredients=[], step=0)
+        result = self.request(state, text="Hold on.")
+        state = verify(result["token"], SECRET)
+        self.assertTrue(state["paused"])
+        result = self.request(state, text="next")
+        self.assertTrue(result["paused"])
+        self.assertEqual(result["step"], 0)
+        result = self.request(verify(result["token"], SECRET), text="Resume")
+        self.assertFalse(result["paused"])
+        self.assertEqual(result["step"], 0)
+
+    def test_resume_during_setup_reasks_without_consuming_answer(self):
+        for phase in ["guests", "equipment"]:
+            state = initial()
+            state.update(phase=phase, paused=True)
+            result = self.request(state, text="Resume")
+            self.assertFalse(result["paused"])
+            self.assertEqual(result["phase"], phase)
+            self.assertEqual(result["step"], -1)
+        self.setup.assert_not_called()
+
     def test_session_cannot_be_used_for_another_recipe(self):
         state = initial()
         state["recipe"]["id"] = "bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb"
@@ -322,6 +393,61 @@ class TurnTests(unittest.TestCase):
             result = self.request(state, "approve", "")
         self.assertEqual(len(result["approved"]), 1)
         self.assertIn("failed", result["warning"])
+
+
+class ConnectionTests(unittest.TestCase):
+    def setUp(self):
+        from food_everything.api import cooking
+
+        self.api = cooking
+        self.auth = patch.object(cooking, "authorize", return_value=SECRET)
+        self.auth.start()
+        self.provider = patch.object(cooking.requests, "post")
+        self.post = self.provider.start()
+        self.client = patch.object(cooking, "openai_client")
+        self.client.start().return_value.api_key = "server-test-key"
+        self.addCleanup(self.auth.stop)
+        self.addCleanup(self.provider.stop)
+        self.addCleanup(self.client.stop)
+        self.req = cooking.LiveConnection(
+            token=sign(initial(), SECRET), sdp="v=0\r\nm=audio 9 UDP/TLS/RTP/SAVPF 111\r\n"
+        )
+
+    def test_only_sdp_reaches_browser_and_transcription_credentials_stay_server_side(self):
+        session, answer = MagicMock(), MagicMock()
+        session.json.return_value = {"value": "ephemeral-test-key"}
+        answer.text = "v=0\r\nm=audio provider-answer"
+        self.post.side_effect = [session, answer]
+        result = self.api.connect(self.req, "Bearer test")
+        self.assertEqual(result, {"sdp": answer.text})
+        create, negotiate = self.post.call_args_list
+        self.assertEqual(create.args, ("https://api.openai.com/v1/realtime/client_secrets",))
+        self.assertEqual(create.kwargs["json"]["session"]["type"], "transcription")
+        self.assertEqual(create.kwargs["headers"]["Authorization"], "Bearer server-test-key")
+        self.assertEqual(negotiate.args, ("https://api.openai.com/v1/realtime/calls",))
+        self.assertEqual(negotiate.kwargs["headers"]["Authorization"], "Bearer ephemeral-test-key")
+        self.assertEqual(negotiate.kwargs["data"], self.req.sdp)
+
+    def test_invalid_state_or_sdp_never_calls_provider(self):
+        from fastapi import HTTPException
+
+        for req in [
+            self.req.model_copy(update={"token": "tampered"}),
+            self.req.model_copy(update={"sdp": "https://untrusted.example/audio"}),
+        ]:
+            with self.assertRaises(HTTPException) as error:
+                self.api.connect(req)
+            self.assertEqual(error.exception.status_code, 400)
+        self.post.assert_not_called()
+
+    def test_provider_errors_are_sanitized(self):
+        from fastapi import HTTPException
+
+        self.post.side_effect = RuntimeError("secret-upstream-request")
+        with self.assertRaises(HTTPException) as error:
+            self.api.connect(self.req)
+        self.assertEqual(error.exception.status_code, 502)
+        self.assertNotIn("secret-upstream", error.exception.detail)
 
 
 if __name__ == "__main__":

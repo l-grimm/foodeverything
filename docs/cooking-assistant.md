@@ -1,31 +1,41 @@
 # Cooking assistant
 
-Start on a recipe detail page. Every session asks about guest restrictions and
-equipment before cooking. **Start** unlocks spoken audio and requests microphone
-permission. The assistant speaks first, then automatically listens. Speak
-naturally; after about 1.4 seconds of silence, it transcribes the turn and responds
-aloud. No Speak/Done buttons are required. You can also type questions,
-“next”, “repeat”, or “pause”. The large control pauses playback or an in-flight
-turn; Resume continues playback or asks to repeat the current step.
+**Start** on a recipe detail page unlocks spoken audio and requests microphone
+permission. Once the recipe is ready, the assistant welcomes the cook, asks about
+guest restrictions, and waits. After a clear answer, it asks about the equipment
+needed for this recipe and waits again. Equipment questions or missing tools are
+resolved before cooking. Every fresh session repeats guest setup.
 
-Substitutions require **Approve & save** or the exact spoken command **approve
-substitution**. “Yes” alone does not apply a change. **Reject** or **reject
-substitution** dismisses the proposal. Questions and repeats retain the step.
+The conversation stays open through assistant speech, processing, and spoken
+pauses. There are no manual listening or pause controls. Say “okay”, “next”, or
+“done” to continue one cooking step at a time; questions and repeats retain the
+step. “Pause” holds the recipe; “resume” repeats the current step or setup question.
+Closing the conversation (or saying “end conversation”) releases the microphone.
+A collapsed text input remains available as a fallback.
 
-The blue waveform reads PCM samples through Web Audio's AnalyserNode, from both
-MediaRecorder's microphone stream and the assistant's decoded speech playback.
-Silence is a flat line. Microphone input is never routed to the speakers.
-The microphone is muted during assistant speech and processing to prevent echo.
-An energy detector ignores silence and short isolated sounds before submitting a
-turn. Continuous kitchen noise can still resemble speech; pause the session when
-running loud equipment. Recordings roll over at 60 seconds; silent recordings are
-discarded without a provider request.
+A proposed substitution requires explicit approval. “Yes” or “yes please” approves
+only when a specific proposal is pending; “okay” alone does not. “No” rejects that
+proposal. The assistant cannot manufacture approval through a generated decision.
+Approved changes are saved separately, preserving the source recipe.
 
-Speech plays through AudioBufferSourceNode in the same AudioContext unlocked by
-the Start gesture, rather than a separately created HTMLAudioElement after a
-network request. If a browser suspends the context, **Enable sound** resumes the
-downloaded speech. The large pause control stops recording and pauses playback;
-closing the session releases the microphone.
+WebRTC carries continuous microphone audio to an OpenAI transcription session.
+Server voice activity detection identifies user turns and interrupts assistant
+playback as soon as speech starts. Completed transcripts are processed in order;
+HTTP turns are serialized so interruptions cannot lose signed state or approvals.
+The backend negotiates SDP using server-only credentials and a short-lived
+transcription credential; the browser receives only SDP, never an API key.
+The input connection does not generate responses or modify recipe state.
+
+The blue waveform reads PCM samples through Web Audio's AnalyserNode from both
+the live microphone and decoded assistant speech. Silence is a flat line.
+Microphone input is never routed to speakers. Echo cancellation, noise suppression,
+and provider voice detection reduce kitchen noise; noisy-room performance and
+speaker echo still need checks on the target device.
+
+Speech plays through AudioBufferSourceNode in the AudioContext unlocked by Start.
+If the browser suspends audio or the connection fails, a visible recovery control
+appears. The microphone remains connected during a spoken pause; close the
+conversation to end audio transmission.
 
 ## Local configuration
 
@@ -44,16 +54,19 @@ uv run uvicorn food_everything.api.main:app --reload --port 8000
 ```
 
 Run `npm run dev` in `web`. Use HTTPS or localhost for microphone access. Denied
-microphone permissions, unsupported recording, and blocked audio playback have
-visible recovery messages; text interaction remains available. Audio is sent to
-OpenAI via the authenticated Python backend, through Next.js POST route handlers.
-Neither audio recordings nor transcripts are written to Supabase.
+microphone permissions, unsupported WebRTC, and blocked playback have visible
+messages. Audio goes directly to OpenAI over the negotiated WebRTC connection;
+transcripts and recipe turns pass through the authenticated backend via Next.js.
+Speech generation remains server-side. Neither recordings nor transcripts are
+written to Supabase. Continuous audio is transmitted until the conversation closes,
+including while the assistant speaks and while recipe guidance is paused.
 
 Optional backend model settings: `COOKING_MODEL` (default `gpt-4o-mini`),
-`COOKING_TRANSCRIPTION_MODEL` (`gpt-4o-mini-transcribe`), and
+`COOKING_LIVE_TRANSCRIPTION_MODEL` (`gpt-4o-mini-transcribe`),
+`COOKING_TRANSCRIPTION_MODEL` (legacy recording endpoint), and
 `COOKING_SPEECH_MODEL` (`gpt-4o-mini-tts`). Model availability depends on the
 existing OpenAI account. Official references:
-[transcription](https://developers.openai.com/api/docs/guides/speech-to-text),
+[live transcription](https://developers.openai.com/api/docs/guides/realtime-transcription),
 [speech generation](https://developers.openai.com/api/docs/guides/text-to-speech),
 [structured output](https://developers.openai.com/api/docs/guides/structured-outputs).
 
@@ -91,18 +104,16 @@ npm run lint
 npm run build
 ```
 
-Tests mock OpenAI and Supabase. Manual checks with configured local services:
-fresh guest prompt every session; equipment query; question/repeat without
-advancement; microphone and assistant waveform; pause while recording, awaiting
-a reply, and during playback; resume; close during microphone permission prompt;
-explicit approval/rejection; restore in a fresh session; denied microphone;
-audio failure; browser storage failure. Test apple/pear, stone fruit, almond and
-mussel conflicts, raw apple cider vinegar aliases, plus non-conflicting walnuts,
-cashews, shrimp and clams. Generated guest restriction and compound ingredient
-handling depend on the model and require manual voice checks.
+Tests mock OpenAI and Supabase. They cover setup waiting states, natural next-step
+commands, pause/resume state, substitution approvals, continuous input, transcript
+ordering, interrupted requests, resource cleanup, and credential isolation.
 
-`web/tests/fixtures/cooking-handsfree.tsx` is a browser regression fixture using
-the real component, Web Audio, and MediaRecorder with synthetic microphone input
-and mocked providers. It exercises two automatic replies, silence detection,
-pause, and microphone cleanup without recording physical audio. To run it
-locally, temporarily re-export it as a Next app page; never deploy that route.
+`web/tests/fixtures/cooking-handsfree.tsx` is a local browser fixture using the real
+component and Web Audio with synthetic microphone input and a mocked WebRTC peer.
+It scripts guest setup, equipment confirmation, next, a question, pause, and resume
+with a single microphone and connection. Temporarily re-export it as a local Next
+page to run it; remove that route afterward and never deploy it.
+
+Mock tests cannot establish provider/account availability or real microphone,
+echo, speaker, mobile backgrounding, or noisy-kitchen behavior. Those require an
+explicitly authorized live integration check. Cloud persistence remains disabled.
