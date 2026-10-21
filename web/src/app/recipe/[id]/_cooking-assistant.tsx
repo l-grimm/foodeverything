@@ -334,17 +334,29 @@ function CookingSession({ recipeId, title, context, microphone, onClose }: {
           setStatus("ready"); void listenRef.current();
         });
         setStatus("speaking");
-      } else if (sessionRef.current) { void record(); }
+      } else {
+        // An interruption can abort the initial request before any audio has
+        // downloaded. Recover by speaking the prompt, not by listening silently.
+        void send(sessionRef.current ? "repeat" : "start");
+      }
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Couldn't enable audio."); }
   }
 
   async function togglePause() {
     if (status === "paused") {
-      await unlockCookingAudio(context);
-      const audio = player.current;
-      if (resumePlayback.current && audio?.canResume) {
-        audio.resume(); setStatus("speaking");
-      } else { void send(sessionRef.current ? "resume" : "start"); }
+      try {
+        await unlockCookingAudio(context);
+        if (context.state !== "running") throw new Error("Tap Enable sound to continue.");
+        setAudioBlocked(false);
+        setError("");
+        const audio = player.current;
+        if (resumePlayback.current && audio?.canResume) {
+          audio.resume(); setStatus("speaking");
+        } else { void send(sessionRef.current ? "resume" : "start"); }
+      } catch {
+        setAudioBlocked(true);
+        setError("Your browser paused the audio. Tap Enable sound to continue.");
+      }
       return;
     }
     ++generation.current;
