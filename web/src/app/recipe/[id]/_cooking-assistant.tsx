@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Mic, Pause, Play, RotateCcw, Send, Square, X } from "lucide-react";
+import { Pause, Play, RotateCcw, Send, Volume2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { CookingAudioPlayer, CookingTurnDetector, unlockCookingAudio } from "@/lib/cooking-audio";
 
 type Modification = { ingredient_id: string; original: string; replacement: string; note: string };
 type Session = {
@@ -11,20 +12,33 @@ type Session = {
 };
 type Status = "thinking" | "speaking" | "ready" | "listening" | "paused";
 type Action = "start" | "message" | "approve" | "reject" | "resume" | "repeat" | "next";
+type MicrophoneAccess = { stream: MediaStream | null; error: string };
+type AudioResources = { context: AudioContext; microphone: Promise<MicrophoneAccess> };
 
 export function CookingAssistant({ recipeId, title, hasSteps }: {
   recipeId: string; title: string; hasSteps: boolean;
 }) {
-  const [context, setContext] = useState<AudioContext | null>(null);
+  const [resources, setResources] = useState<AudioResources | null>(null);
   const [unavailable, setUnavailable] = useState(false);
   const startButton = useRef<HTMLButtonElement>(null);
-  useEffect(() => () => { if (context && context.state !== "closed") void context.close(); }, [context]);
+  useEffect(() => () => {
+    if (!resources) return;
+    if (resources.context.state !== "closed") void resources.context.close();
+    void resources.microphone.then(({ stream }) => stream?.getTracks().forEach(track => track.stop()));
+  }, [resources]);
   function open() {
     if (typeof AudioContext === "undefined") { setUnavailable(true); return; }
     // Audio is unlocked by a user gesture; never bundle an API key here.
     const audioContext = new AudioContext();
-    void audioContext.resume();
-    setContext(audioContext);
+    void unlockCookingAudio(audioContext).catch(() => { /* Enable sound offers a fresh gesture. */ });
+    // Request permission on Start. Keep the mic muted until the assistant has
+    // finished speaking, so it cannot transcribe its own voice.
+    const microphone: Promise<MicrophoneAccess> = typeof navigator.mediaDevices?.getUserMedia === "function" && typeof MediaRecorder !== "undefined"
+      ? navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } })
+        .then(stream => { stream.getTracks().forEach(track => { track.enabled = false; }); return { stream, error: "" }; })
+        .catch(() => ({ stream: null, error: "Allow microphone access in your browser to have a hands-free conversation. You can still hear the assistant and type replies." }))
+      : Promise.resolve({ stream: null, error: "This browser doesn't support microphone recording. You can still hear the assistant and type replies." });
+    setResources({ context: audioContext, microphone });
   }
   return <>
     <Button ref={startButton} size="sm" onClick={open} disabled={!hasSteps}
@@ -32,25 +46,28 @@ export function CookingAssistant({ recipeId, title, hasSteps }: {
       <Play size={14} aria-hidden="true" /> Start
     </Button>
     {unavailable && <span role="alert" className="text-xs">This browser doesn’t support cooking audio.</span>}
-    {context && <CookingSession recipeId={recipeId} title={title} context={context} onClose={() => {
-      setContext(null);
+    {resources && <CookingSession recipeId={recipeId} title={title} context={resources.context} microphone={resources.microphone} onClose={() => {
+      setResources(null);
       // Wait until the modal is removed and the recipe is no longer inert.
       requestAnimationFrame(() => startButton.current?.focus());
     }} />}
   </>;
 }
 
-function CookingSession({ recipeId, title, context, onClose }: {
-  recipeId: string; title: string; context: AudioContext; onClose: () => void;
+function CookingSession({ recipeId, title, context, microphone, onClose }: {
+  recipeId: string; title: string; context: AudioContext; microphone: Promise<MicrophoneAccess>; onClose: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const analyser = useRef<AnalyserNode | null>(null);
-  const player = useRef<HTMLAudioElement | null>(null);
-  const playbackUrl = useRef<string | null>(null);
+  const player = useRef<CookingAudioPlayer | null>(null);
+  const decodedReply = useRef<AudioBuffer | null>(null);
+  const listenRef = useRef<() => Promise<void>>(async () => {});
   const recorder = useRef<MediaRecorder | null>(null);
   const micStream = useRef<MediaStream | null>(null);
   const micSource = useRef<MediaStreamAudioSourceNode | null>(null);
+  const micMeter = useRef<AnalyserNode | null>(null);
+  const detectionTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const recordingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const controller = useRef<AbortController | null>(null);
   const generation = useRef(0);
@@ -59,6 +76,7 @@ function CookingSession({ recipeId, title, context, onClose }: {
   const [session, setSession] = useState<Session | null>(null);
   const [status, setStatus] = useState<Status>("thinking");
   const [error, setError] = useState("");
+  const [audioBlocked, setAudioBlocked] = useState(false);
   const [storageWarning, setStorageWarning] = useState("");
   const [draft, setDraft] = useState("");
   const [heard, setHeard] = useState("");
@@ -67,12 +85,16 @@ function CookingSession({ recipeId, title, context, onClose }: {
   const stopMic = useCallback(() => {
     if (recordingTimer.current) clearTimeout(recordingTimer.current);
     recordingTimer.current = null;
+    if (detectionTimer.current) clearInterval(detectionTimer.current);
+    detectionTimer.current = null;
     if (recorder.current && recorder.current.state !== "inactive") recorder.current.stop();
     recorder.current = null;
-    micStream.current?.getTracks().forEach(track => track.stop());
+    micStream.current?.getTracks().forEach(track => { track.enabled = false; });
     micStream.current = null;
     micSource.current?.disconnect();
     micSource.current = null;
+    micMeter.current?.disconnect();
+    micMeter.current = null;
   }, []);
 
   const speak = useCallback(async (next: Session, signal: AbortSignal, version: number) => {
@@ -80,22 +102,23 @@ function CookingSession({ recipeId, title, context, onClose }: {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ token: next.token }), signal,
     });
-    if (!response.ok) throw new Error("Audio unavailable. Read the response below, or use Repeat to try again.");
-    const blob = await response.blob();
+    if (!response.ok) throw new Error("I couldn't generate spoken audio. Tap Repeat to try again.");
+    const bytes = await response.arrayBuffer();
     if (signal.aborted || version !== generation.current) return;
-    if (playbackUrl.current) URL.revokeObjectURL(playbackUrl.current);
-    playbackUrl.current = URL.createObjectURL(blob);
-    const audio = player.current!;
-    audio.src = playbackUrl.current;
-    await context.resume();
+    const buffer = await context.decodeAudioData(bytes);
     if (signal.aborted || version !== generation.current) return;
-    try {
-      await audio.play();
-      if (version === generation.current) setStatus("speaking");
-      else audio.pause();
-    } catch {
-      throw new Error("Tap Repeat to enable spoken audio. You can also read and type below.");
+    decodedReply.current = buffer;
+    if (context.state !== "running") {
+      setAudioBlocked(true);
+      throw new Error("Your browser paused the audio. Tap Enable sound to hear me.");
     }
+    setAudioBlocked(false);
+    player.current!.play(buffer, () => {
+      if (next.paused) { setStatus("paused"); return; }
+      setStatus("ready");
+      void listenRef.current();
+    });
+    setStatus("speaking");
   }, [context]);
 
   const send = useCallback(async (action: Action, text = "") => {
@@ -103,7 +126,8 @@ function CookingSession({ recipeId, title, context, onClose }: {
     controller.current?.abort();
     const request = new AbortController();
     controller.current = request;
-    player.current?.pause();
+    player.current?.stop();
+    decodedReply.current = null;
     stopMic();
     setStatus("thinking");
     setError("");
@@ -129,8 +153,6 @@ function CookingSession({ recipeId, title, context, onClose }: {
         try { localStorage.setItem(storageKey, next.saved_token); }
         catch { setStorageWarning("Your browser couldn't save changes. Keep this session open to retain them."); }
       }
-      if (next.paused) { setStatus("paused"); return; }
-      setStatus("ready");
       await speak(next, request.signal, version);
     } catch (cause) {
       if (request.signal.aborted || version !== generation.current) return;
@@ -148,14 +170,20 @@ function CookingSession({ recipeId, title, context, onClose }: {
     meter.fftSize = 512;
     meter.smoothingTimeConstant = 0.72;
     analyser.current = meter;
-    const audio = new Audio();
+    const audio = new CookingAudioPlayer(context, meter);
     player.current = audio;
-    const source = context.createMediaElementSource(audio);
-    source.connect(meter);
-    // Mic connects only to the analyser, so it never echoes through speakers.
-    source.connect(context.destination);
-    audio.onended = () => setStatus("ready");
-    audio.onerror = () => { setError("Audio playback failed. Tap Repeat to try again."); setStatus("ready"); };
+    const handleAudioState = () => {
+      if (context.state === "running" || context.state === "closed") return;
+      ++generation.current;
+      controller.current?.abort();
+      audio.pause();
+      resumePlayback.current = audio.canResume;
+      stopMic();
+      setAudioBlocked(true);
+      setStatus("paused");
+      setError("Your browser paused the audio. Tap Enable sound to continue.");
+    };
+    context.addEventListener("statechange", handleAudioState);
     // Mount opens a new server session; async responses drive subsequent state.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void send("start");
@@ -165,12 +193,9 @@ function CookingSession({ recipeId, title, context, onClose }: {
       ++requestGeneration.current;
       controller.current?.abort();
       stopMic();
-      audio.pause();
-      audio.onended = null;
-      audio.onerror = null;
-      source.disconnect();
+      audio.stop();
+      context.removeEventListener("statechange", handleAudioState);
       meter.disconnect();
-      if (playbackUrl.current) URL.revokeObjectURL(playbackUrl.current);
       document.body.style.overflow = previousOverflow;
       modal.close();
       // Context is closed by the owning component after the modal unmounts.
@@ -216,22 +241,27 @@ function CookingSession({ recipeId, title, context, onClose }: {
     return () => cancelAnimationFrame(raf);
   }, [status]);
 
-  async function record() {
-    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
-      setError("Voice recording needs a supported browser on HTTPS or localhost. You can type below."); return;
-    }
+  const record = useCallback(async () => {
     const version = ++generation.current;
     controller.current?.abort();
-    player.current?.pause();
+    player.current?.stop();
     setError("");
     setStatus("thinking");
     try {
-      await context.resume();
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
-      if (version !== generation.current) { stream.getTracks().forEach(t => t.stop()); return; }
+      const access = await microphone;
+      if (version !== generation.current) return;
+      if (!access.stream) throw new Error(access.error);
+      if (context.state !== "running") { setAudioBlocked(true); throw new Error("Tap Enable sound to resume the conversation."); }
+      const stream = access.stream;
+      stream.getAudioTracks().forEach(track => { track.enabled = true; });
       micStream.current = stream;
       micSource.current = context.createMediaStreamSource(stream);
       micSource.current.connect(analyser.current!);
+      const speechMeter = context.createAnalyser();
+      speechMeter.fftSize = 1024;
+      micMeter.current = speechMeter;
+      micSource.current.connect(speechMeter);
+      const detector = new CookingTurnDetector();
       const mime = ["audio/webm;codecs=opus", "audio/mp4", "audio/ogg;codecs=opus"].find(type => MediaRecorder.isTypeSupported(type));
       if (!mime) throw new Error("This browser can't record a supported format. Please type below.");
       const recording = new MediaRecorder(stream, { mimeType: mime });
@@ -241,6 +271,12 @@ function CookingSession({ recipeId, title, context, onClose }: {
       recording.onstop = async () => {
         stopMic();
         if (version !== generation.current) return;
+        if (!detector.hasSpeech) {
+          // Roll over long silent recordings without uploading silence or
+          // spending an OpenAI turn. No button is needed to keep listening.
+          void listenRef.current();
+          return;
+        }
         const request = new AbortController();
         controller.current = request;
         setStatus("thinking");
@@ -262,9 +298,14 @@ function CookingSession({ recipeId, title, context, onClose }: {
       recording.onerror = () => {
         ++generation.current; stopMic(); setStatus("ready"); setError("Recording failed. Please try again or type below.");
       };
-      recording.start();
+      recording.start(250);
       setStatus("listening");
-      // Explicit turns avoid interpreting kitchen noise as an instruction.
+      const samples = new Float32Array(speechMeter.fftSize);
+      detectionTimer.current = setInterval(() => {
+        speechMeter.getFloatTimeDomainData(samples);
+        const rms = Math.sqrt(samples.reduce((sum, value) => sum + value * value, 0) / samples.length);
+        if (detector.sample(rms, performance.now())) stopMic();
+      }, 40);
       recordingTimer.current = setTimeout(() => stopMic(), 60_000);
     } catch (cause) {
       if (version !== generation.current) return;
@@ -273,15 +314,36 @@ function CookingSession({ recipeId, title, context, onClose }: {
         ? "Microphone access was denied. Enable it in browser settings, or type below."
         : cause instanceof Error ? cause.message : "Couldn't open the microphone.");
     }
+  }, [context, microphone, send, stopMic]);
+
+  useEffect(() => { listenRef.current = record; }, [record]);
+
+  async function enableSound() {
+    try {
+      await unlockCookingAudio(context);
+      if (context.state !== "running") throw new Error("Audio is still paused by the browser. Check this site's sound permission.");
+      setAudioBlocked(false);
+      setError("");
+      if (player.current?.canResume) {
+        player.current.resume();
+        setStatus("speaking");
+      } else if (decodedReply.current) {
+        const paused = sessionRef.current?.paused;
+        player.current!.play(decodedReply.current, () => {
+          if (paused) { setStatus("paused"); return; }
+          setStatus("ready"); void listenRef.current();
+        });
+        setStatus("speaking");
+      } else if (sessionRef.current) { void record(); }
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Couldn't enable audio."); }
   }
 
   async function togglePause() {
     if (status === "paused") {
-      await context.resume();
+      await unlockCookingAudio(context);
       const audio = player.current;
-      if (resumePlayback.current && audio?.src && !audio.ended) {
-        try { await audio.play(); setStatus("speaking"); }
-        catch { setError("Couldn't resume audio. Tap Repeat."); setStatus("ready"); }
+      if (resumePlayback.current && audio?.canResume) {
+        audio.resume(); setStatus("speaking");
       } else { void send(sessionRef.current ? "resume" : "start"); }
       return;
     }
@@ -294,7 +356,7 @@ function CookingSession({ recipeId, title, context, onClose }: {
   }
 
   const busy = status === "thinking";
-  const label = { thinking: "Preparing your next turn…", speaking: "Your cooking companion is speaking", ready: "Your turn", listening: "Listening · tap Done when you’re finished", paused: "Take your time. We’re paused." }[status];
+  const label = { thinking: "Preparing your next turn…", speaking: "Your cooking companion is speaking", ready: "Ready when you are", listening: "Listening · just speak naturally", paused: "Take your time. We’re paused." }[status];
   return <dialog ref={dialog} className="cooking-dialog" aria-labelledby="cooking-title" onCancel={event => { event.preventDefault(); onClose(); }}>
     <div className="mx-auto flex min-h-full w-full max-w-2xl flex-col px-6 py-5 sm:px-12 sm:py-6">
       <header className="flex items-center justify-between gap-4">
@@ -324,28 +386,26 @@ function CookingSession({ recipeId, title, context, onClose }: {
         </div>}
         {(error || storageWarning || session?.warning) && <div role="alert" className="mt-5 text-sm text-destructive">
           {error && <p>{error}</p>}{storageWarning && <p>{storageWarning}</p>}{session?.warning && <p>{session.warning}</p>}
+          {audioBlocked && <Button className="mt-3" onClick={() => void enableSound()}><Volume2 size={16} /> Enable sound</Button>}
           {!session && !busy && <Button className="mt-3" variant="outline" onClick={() => void send("start")}>Try again</Button>}
         </div>}
       </main>
       <footer className="space-y-4 pb-4">
         <div className="flex items-center justify-center gap-3">
-          <Button variant="outline" disabled={!session || busy || status === "paused" || status === "listening"} onClick={() => void send("repeat")}><RotateCcw size={16} /> Repeat</Button>
-          <Button disabled={!session || busy || status === "paused"} onClick={() => status === "listening" ? stopMic() : void record()}>
-            {status === "listening" ? <><Square size={16} /> Done</> : <><Mic size={16} /> Speak</>}
-          </Button>
+          <Button variant="outline" disabled={!session || busy || status === "paused"} onClick={() => void send("repeat")}><RotateCcw size={16} /> Repeat</Button>
         </div>
         {heard && <p className="text-center text-xs text-muted-foreground">You: {heard}</p>}
         <form className="flex gap-2" onSubmit={event => {
           event.preventDefault(); if (draft.trim()) { void send("message", draft.trim()); setDraft(""); }
         }}>
           <input value={draft} onChange={event => setDraft(event.target.value)} maxLength={2000}
-            disabled={!session || busy || status === "paused" || status === "listening"}
+            disabled={!session || busy || status === "paused"}
             className="min-w-0 flex-1 rounded-full border border-border bg-transparent px-5 py-3 text-sm outline-primary"
             aria-label="Type a message to your cooking assistant" placeholder="Or type a question…" />
           <button type="submit" className="cooking-icon-button" aria-label="Send message"
-            disabled={!draft.trim() || !session || busy || status === "paused" || status === "listening"}><Send size={20} /></button>
+            disabled={!draft.trim() || !session || busy || status === "paused"}><Send size={20} /></button>
         </form>
-        <p className="text-center text-xs text-muted-foreground">AI-generated voice · Speak, then tap Done. Approved changes are saved in this browser.</p>
+        <p className="text-center text-xs text-muted-foreground">AI-generated voice · Speak naturally after I finish. I’ll respond when you pause.</p>
         {!!session?.approved.length && <details className="text-sm text-muted-foreground">
           <summary className="cursor-pointer">{session.approved.length} approved change{session.approved.length === 1 ? "" : "s"}</summary>
           <ul className="mt-2 space-y-2">{session.approved.map(m => <li key={m.ingredient_id}>{m.original} → {m.replacement}. {m.note}</li>)}</ul>

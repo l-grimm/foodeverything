@@ -1,8 +1,10 @@
 # Cooking assistant
 
 Start on a recipe detail page. Every session asks about guest restrictions and
-equipment before cooking. Tap **Speak**, talk, then tap **Done** (maximum 60
-seconds). The assistant responds after each turn. You can also type questions,
+equipment before cooking. **Start** unlocks spoken audio and requests microphone
+permission. The assistant speaks first, then automatically listens. Speak
+naturally; after about 1.4 seconds of silence, it transcribes the turn and responds
+aloud. No Speak/Done buttons are required. You can also type questions,
 “next”, “repeat”, or “pause”. The large control pauses playback or an in-flight
 turn; Resume continues playback or asks to repeat the current step.
 
@@ -11,9 +13,19 @@ substitution**. “Yes” alone does not apply a change. **Reject** or **reject
 substitution** dismisses the proposal. Questions and repeats retain the step.
 
 The blue waveform reads PCM samples through Web Audio's AnalyserNode, from both
-MediaRecorder's microphone stream and the assistant's actual MP3 playback.
+MediaRecorder's microphone stream and the assistant's decoded speech playback.
 Silence is a flat line. Microphone input is never routed to the speakers.
-Recording is explicit, so ambient kitchen sounds cannot create a turn.
+The microphone is muted during assistant speech and processing to prevent echo.
+An energy detector ignores silence and short isolated sounds before submitting a
+turn. Continuous kitchen noise can still resemble speech; pause the session when
+running loud equipment. Recordings roll over at 60 seconds; silent recordings are
+discarded without a provider request.
+
+Speech plays through AudioBufferSourceNode in the same AudioContext unlocked by
+the Start gesture, rather than a separately created HTMLAudioElement after a
+network request. If a browser suspends the context, **Enable sound** resumes the
+downloaded speech. The large pause control stops recording and pauses playback;
+closing the session releases the microphone.
 
 ## Local configuration
 
@@ -88,3 +100,9 @@ audio failure; browser storage failure. Test apple/pear, stone fruit, almond and
 mussel conflicts, raw apple cider vinegar aliases, plus non-conflicting walnuts,
 cashews, shrimp and clams. Generated guest restriction and compound ingredient
 handling depend on the model and require manual voice checks.
+
+`web/tests/fixtures/cooking-handsfree.tsx` is a browser regression fixture using
+the real component, Web Audio, and MediaRecorder with synthetic microphone input
+and mocked providers. It exercises two automatic replies, silence detection,
+pause, and microphone cleanup without recording physical audio. To run it
+locally, temporarily re-export it as a Next app page; never deploy that route.
