@@ -17,8 +17,10 @@ from food_everything.ingest.instagram import ingest as ingest_instagram
 from food_everything.ingest.pantry import ingest as ingest_pantry
 from food_everything.ingest.substack import ingest as ingest_url
 from food_everything.ingest.tiktok import ingest as ingest_tiktok
+from food_everything.api.cooking import router as cooking_router
 
 app = FastAPI(title="Food Everything")
+app.include_router(cooking_router)
 
 
 class WebhookRequest(BaseModel):

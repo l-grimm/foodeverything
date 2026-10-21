@@ -11,6 +11,7 @@ import type { Recipe, RecipeIngredient } from "@/lib/types";
 import { RecipeEditForm } from "./_edit-form";
 import { FavoriteButton } from "./_favorite-button";
 import { ReExtractButton } from "./_re-extract-button";
+import { CookingAssistant } from "./_cooking-assistant";
 
 // Thin client wrapper that decides whether to show the server-rendered
 // read view (passed as `children`) or the client-side edit form. Keeps
@@ -71,6 +72,7 @@ export function RecipeViewToggle({
       <div className="flex items-center justify-between gap-3 mb-6">
         <BackToRecipes />
         <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+          <CookingAssistant recipeId={recipe.id} title={recipe.title} hasSteps={!!recipe.instructions?.length} />
           <FavoriteButton
             recipeId={recipe.id}
             initial={recipe.is_favorite === true}

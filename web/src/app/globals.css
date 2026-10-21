@@ -128,3 +128,44 @@
     letter-spacing: -0.01em;
   }
 }
+
+.cooking-dialog {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  height: 100dvh;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  overflow-y: auto;
+  background: var(--background);
+  color: var(--foreground);
+}
+.cooking-dialog::backdrop { background: var(--background); }
+.cooking-pause {
+  display: grid;
+  place-items: center;
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  cursor: pointer;
+}
+.cooking-icon-button {
+  display: grid;
+  place-items: center;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 50%;
+  cursor: pointer;
+}
+.cooking-icon-button:disabled { opacity: 0.4; cursor: default; }
+.cooking-icon-button:hover:not(:disabled) { background: var(--accent); }
+.cooking-pause:focus-visible, .cooking-icon-button:focus-visible {
+  outline: 3px solid var(--primary);
+  outline-offset: 5px;
+}
